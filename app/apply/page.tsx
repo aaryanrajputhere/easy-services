@@ -2,10 +2,10 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { BadgeDollarSign, ArrowLeft, Upload } from "lucide-react"
+import { BadgeDollarSign, ArrowLeft, Upload, Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,12 +13,21 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Progress } from "@/components/ui/progress"
 import { submitApplication } from "./actions"
+
+type UploadedDocument = {
+  name: string
+  url: string
+  status: "uploading" | "success" | "error"
+  progress: number
+  error?: string
+}
 
 export default function ApplicationPage() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
+  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([])
   const [formData, setFormData] = useState({
     businessName: "",
     businessAddress: "",
@@ -64,18 +73,123 @@ export default function ApplicationPage() {
     }
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files)
-      setUploadedFiles((prev) => [...prev, ...newFiles])
-    }
-  }
+  const uploadFile = useCallback(
+    async (file: File) => {
+      // Create a new document entry with "uploading" status
+      const newDocument: UploadedDocument = {
+        name: file.name,
+        url: "",
+        status: "uploading",
+        progress: 0,
+      }
 
-  const removeFile = (index: number) => {
-    setUploadedFiles((prev) => prev.filter((_, i) => i !== index))
-  }
+      // Add the new document to the state
+      setUploadedDocuments((prev) => [...prev, newDocument])
 
-  const validateForm = () => {
+      // Get the index of the new document
+      const documentIndex = uploadedDocuments.length
+
+      try {
+        // Create form data for the file
+        const formData = new FormData()
+        formData.append("file", file)
+
+        // Simulate progress updates
+        const progressInterval = setInterval(() => {
+          setUploadedDocuments((prev) => {
+            const updated = [...prev]
+            if (updated[documentIndex] && updated[documentIndex].status === "uploading") {
+              updated[documentIndex] = {
+                ...updated[documentIndex],
+                progress: Math.min(updated[documentIndex].progress + 10, 90),
+              }
+            }
+            return updated
+          })
+        }, 300)
+
+        console.log(`Uploading file: ${file.name}, size: ${file.size} bytes`)
+
+        // Upload the file
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        })
+
+        clearInterval(progressInterval)
+
+        // Parse the response
+        const result = await response.json()
+
+        if (!response.ok) {
+          throw new Error(result.error || result.details || "Failed to upload file")
+        }
+
+        console.log("Upload response:", result)
+
+        // Update the document with the URL and success status
+        setUploadedDocuments((prev) => {
+          const updated = [...prev]
+          if (updated[documentIndex]) {
+            updated[documentIndex] = {
+              name: result.name,
+              url: result.url,
+              status: "success",
+              progress: 100,
+            }
+          }
+          return updated
+        })
+
+        console.log(`File uploaded successfully: ${result.url}`)
+        return result.url
+      } catch (error) {
+        console.error("Error uploading file:", error)
+
+        // Update the document with error status
+        setUploadedDocuments((prev) => {
+          const updated = [...prev]
+          if (updated[documentIndex]) {
+            updated[documentIndex] = {
+              ...updated[documentIndex],
+              status: "error",
+              progress: 100,
+              error: error instanceof Error ? error.message : "Unknown error",
+            }
+          }
+          return updated
+        })
+
+        setSubmitError(`Failed to upload document: ${error instanceof Error ? error.message : "Unknown error"}`)
+        return null
+      }
+    },
+    [uploadedDocuments.length],
+  )
+
+  const handleFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0) {
+        const files = Array.from(e.target.files)
+        console.log(`Selected ${files.length} files for upload`)
+
+        // Clear any previous errors
+        setSubmitError(null)
+
+        // Upload each file
+        for (const file of files) {
+          await uploadFile(file)
+        }
+      }
+    },
+    [uploadFile],
+  )
+
+  const removeDocument = useCallback((index: number) => {
+    setUploadedDocuments((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const validateForm = useCallback(() => {
     const newErrors: Record<string, string> = {}
 
     // Required fields
@@ -107,7 +221,7 @@ export default function ApplicationPage() {
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
-  }
+  }, [formData])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -123,8 +237,27 @@ export default function ApplicationPage() {
     try {
       console.log("Submitting form data:", formData)
 
-      // Submit the application
-      const result = await submitApplication(formData)
+      // Check if any documents are still uploading
+      const stillUploading = uploadedDocuments.some((doc) => doc.status === "uploading")
+      if (stillUploading) {
+        setSubmitError("Please wait for all documents to finish uploading.")
+        setIsSubmitting(false)
+        return
+      }
+
+      // Prepare the documents data
+      const successfulDocuments = uploadedDocuments
+        .filter((doc) => doc.status === "success")
+        .map(({ name, url }) => ({ name, url }))
+
+      console.log("Documents to submit:", successfulDocuments)
+
+      // Submit the application with documents
+      const result = await submitApplication({
+        ...formData,
+        documents: successfulDocuments,
+      })
+
       console.log("Submission result:", result)
 
       if (result.success) {
@@ -135,6 +268,7 @@ export default function ApplicationPage() {
           const applications = JSON.parse(localStorage.getItem("applications") || "[]")
           applications.push({
             ...formData,
+            documents: successfulDocuments,
             submittedAt: new Date().toISOString(),
           })
           localStorage.setItem("applications", JSON.stringify(applications))
@@ -169,13 +303,15 @@ export default function ApplicationPage() {
       </div>
 
       {submitError && (
-        <div className="bg-red-50 border border-red-200 text-red-800 rounded-md p-4 mb-6">
+        <div className="bg-red-50 border border-red-200 text-red-800 rounded-md p-4 mb-6 flex items-start gap-2">
+          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
           <p>{submitError}</p>
         </div>
       )}
 
       {submitSuccess && (
-        <div className="bg-green-50 border border-green-200 text-green-800 rounded-md p-4 mb-6">
+        <div className="bg-green-50 border border-green-200 text-green-800 rounded-md p-4 mb-6 flex items-start gap-2">
+          <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
           <p>Your application has been submitted successfully! Redirecting...</p>
         </div>
       )}
@@ -405,20 +541,45 @@ export default function ApplicationPage() {
                 </label>
               </div>
 
-              {uploadedFiles.length > 0 && (
+              {uploadedDocuments.length > 0 && (
                 <div className="mt-4">
-                  <h3 className="text-sm font-medium mb-2">Selected Files:</h3>
+                  <h3 className="text-sm font-medium mb-2">Uploaded Documents:</h3>
                   <ul className="space-y-2">
-                    {uploadedFiles.map((file, index) => (
+                    {uploadedDocuments.map((doc, index) => (
                       <li key={index} className="flex items-center justify-between bg-muted p-2 rounded-md">
-                        <span className="text-sm truncate max-w-[80%]">{file.name}</span>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeFile(index)}>
-                          Remove
-                        </Button>
+                        <div className="flex items-center space-x-2 max-w-[80%]">
+                          {doc.status === "uploading" ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                          ) : doc.status === "success" ? (
+                            <CheckCircle className="h-4 w-4 text-emerald-600" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          )}
+                          <span className="text-sm truncate">{doc.name}</span>
+                        </div>
+                        {doc.status === "uploading" ? (
+                          <div className="w-24">
+                            <Progress value={doc.progress} className="h-2" />
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeDocument(index)}
+                            disabled={doc.status === "uploading"}
+                          >
+                            Remove
+                          </Button>
+                        )}
                       </li>
                     ))}
                   </ul>
-                  <p className="text-xs text-muted-foreground mt-2">Note: Files will be collected during submission.</p>
+                  {uploadedDocuments.some((doc) => doc.status === "error") && (
+                    <p className="text-xs text-red-500 mt-2">
+                      Some documents failed to upload. Please remove them and try again.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -437,4 +598,3 @@ export default function ApplicationPage() {
     </div>
   )
 }
-
