@@ -20,6 +20,10 @@ type ApplicationData = {
   monthlyRevenue: string
   requestedAmount: string
   useOfFunds: string
+  documents: Array<{
+    name: string
+    url: string
+  }>
 }
 
 export async function submitApplication(formData: ApplicationData) {
@@ -29,6 +33,12 @@ export async function submitApplication(formData: ApplicationData) {
   try {
     // For testing purposes, let's log what we're about to do
     console.log("Attempting to send email to info@easyservices.info")
+
+    // Prepare document links for the email
+    const documentLinks =
+      formData.documents && formData.documents.length > 0
+        ? formData.documents.map((doc) => `<li><a href="${doc.url}" target="_blank">${doc.name}</a></li>`).join("")
+        : "<li>No documents uploaded</li>"
 
     // Send email notification
     const emailResult = await resend.emails.send({
@@ -59,6 +69,11 @@ export async function submitApplication(formData: ApplicationData) {
           <li><strong>Requested Amount:</strong> ${formData.requestedAmount}</li>
           <li><strong>Use of Funds:</strong> ${formData.useOfFunds}</li>
         </ul>
+        
+        <h2>Uploaded Documents</h2>
+        <ul>
+          ${documentLinks}
+        </ul>
       `,
     })
 
@@ -67,6 +82,26 @@ export async function submitApplication(formData: ApplicationData) {
     if (emailResult.error) {
       console.error("Error sending email:", emailResult.error)
       return { success: false, error: `Failed to send email: ${emailResult.error.message}` }
+    }
+
+    // Send confirmation email to the applicant
+    const confirmationResult = await resend.emails.send({
+      from: "Easy Services <onboarding@resend.dev>",
+      to: formData.ownerEmail,
+      subject: "Your Merchant Cash Advance Application - Easy Services",
+      html: `
+        <h1>Thank You for Your Application</h1>
+        <p>Dear ${formData.ownerName},</p>
+        <p>We have received your merchant cash advance application for ${formData.businessName}.</p>
+        <p>Our team will review your information and contact you within 24 hours.</p>
+        <p>If you have any questions, please contact us at info@easyservices.info.</p>
+        <p>Sincerely,<br>Easy Services Team</p>
+      `,
+    })
+
+    if (confirmationResult.error) {
+      console.error("Error sending confirmation email:", confirmationResult.error)
+      // We'll continue even if the confirmation email fails
     }
 
     // Log the application data

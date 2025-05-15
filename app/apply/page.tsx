@@ -5,7 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { BadgeDollarSign, ArrowLeft, Upload } from "lucide-react"
+import { BadgeDollarSign, ArrowLeft, Upload, Loader2, CheckCircle, XCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,12 +15,20 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { submitApplication } from "./actions"
 import { useToast } from "@/components/ui/use-toast"
+import { Progress } from "@/components/ui/progress"
+
+type UploadedDocument = {
+  name: string
+  url: string
+  status: "uploading" | "success" | "error"
+  progress: number
+}
 
 export default function ApplicationPage() {
   const router = useRouter()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
+  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([])
   const [formData, setFormData] = useState({
     businessName: "",
     businessAddress: "",
@@ -64,15 +72,110 @@ export default function ApplicationPage() {
     }
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files)
-      setUploadedFiles((prev) => [...prev, ...newFiles])
+  const uploadFile = async (file: File) => {
+    // Create a new document entry with "uploading" status
+    const newDocument: UploadedDocument = {
+      name: file.name,
+      url: "",
+      status: "uploading",
+      progress: 0,
+    }
+
+    setUploadedDocuments((prev) => [...prev, newDocument])
+    const documentIndex = uploadedDocuments.length
+
+    try {
+      // Create form data for the file
+      const formData = new FormData()
+      formData.append("file", file)
+
+      // Simulate progress updates
+      const progressInterval = setInterval(() => {
+        setUploadedDocuments((prev) => {
+          const updated = [...prev]
+          if (updated[documentIndex] && updated[documentIndex].status === "uploading") {
+            updated[documentIndex] = {
+              ...updated[documentIndex],
+              progress: Math.min(updated[documentIndex].progress + 10, 90),
+            }
+          }
+          return updated
+        })
+      }, 300)
+
+      // Upload the file
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      clearInterval(progressInterval)
+
+      if (!response.ok) {
+        throw new Error("Failed to upload file")
+      }
+
+      const result = await response.json()
+
+      // Update the document with the URL and success status
+      setUploadedDocuments((prev) => {
+        const updated = [...prev]
+        if (updated[documentIndex]) {
+          updated[documentIndex] = {
+            name: result.name,
+            url: result.url,
+            status: "success",
+            progress: 100,
+          }
+        }
+        return updated
+      })
+
+      return result.url
+    } catch (error) {
+      console.error("Error uploading file:", error)
+
+      // Update the document with error status
+      setUploadedDocuments((prev) => {
+        const updated = [...prev]
+        if (updated[documentIndex]) {
+          updated[documentIndex] = {
+            ...updated[documentIndex],
+            status: "error",
+            progress: 100,
+          }
+        }
+        return updated
+      })
+
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload document. Please try again.",
+        variant: "destructive",
+      })
+
+      return null
     }
   }
 
-  const removeFile = (index: number) => {
-    setUploadedFiles((prev) => prev.filter((_, i) => i !== index))
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files)
+
+      toast({
+        title: "Uploading Documents",
+        description: `Uploading ${files.length} document(s)...`,
+      })
+
+      // Upload each file
+      for (const file of files) {
+        await uploadFile(file)
+      }
+    }
+  }
+
+  const removeDocument = (index: number) => {
+    setUploadedDocuments((prev) => prev.filter((_, i) => i !== index))
   }
 
   const validateForm = () => {
@@ -128,12 +231,16 @@ export default function ApplicationPage() {
     })
 
     try {
-      // For debugging
-      console.log("Submitting form with data:", formData)
+      // Prepare the documents data
+      const successfulDocuments = uploadedDocuments
+        .filter((doc) => doc.status === "success")
+        .map(({ name, url }) => ({ name, url }))
 
-      // Submit the application
-      const result = await submitApplication(formData)
-      console.log("Submission result:", result)
+      // Submit the application with documents
+      const result = await submitApplication({
+        ...formData,
+        documents: successfulDocuments,
+      })
 
       if (result.success) {
         toast({
@@ -158,50 +265,6 @@ export default function ApplicationPage() {
     }
   }
 
-  // For testing purposes - simplified form for quick testing
-  const handleQuickSubmit = async () => {
-    setIsSubmitting(true)
-
-    const testData = {
-      businessName: "Test Business",
-      businessAddress: "123 Test St",
-      businessCity: "Test City",
-      businessState: "TS",
-      businessZip: "12345",
-      yearsInBusiness: "1-2",
-      ownerName: "Test Owner",
-      ownerEmail: "test@example.com",
-      ownerPhone: "1234567890",
-      monthlyRevenue: "10k-25k",
-      requestedAmount: "5k-25k",
-      useOfFunds: "Testing the application form",
-    }
-
-    try {
-      console.log("Submitting test data:", testData)
-      const result = await submitApplication(testData)
-      console.log("Test submission result:", result)
-
-      if (result.success) {
-        toast({
-          title: "Test Successful",
-          description: "The test submission was successful!",
-        })
-      } else {
-        throw new Error(result.error || "Test submission failed")
-      }
-    } catch (error: any) {
-      console.error("Test submission error:", error)
-      toast({
-        title: "Test Failed",
-        description: error.message || "The test submission failed.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
   return (
     <div className="container max-w-4xl py-10">
       <Link href="/" className="flex items-center text-sm text-muted-foreground hover:text-emerald-600 mb-6">
@@ -213,15 +276,6 @@ export default function ApplicationPage() {
         <BadgeDollarSign className="h-8 w-8 text-emerald-600" />
         <h1 className="text-3xl font-bold">Easy Services - Merchant Cash Advance Application</h1>
       </div>
-
-      {/* Test button for debugging - remove in production */}
-      <Button
-        onClick={handleQuickSubmit}
-        className="mb-4 bg-gray-200 text-gray-800 hover:bg-gray-300"
-        disabled={isSubmitting}
-      >
-        Test Submission (Debug)
-      </Button>
 
       <Card>
         <CardHeader>
@@ -448,22 +502,40 @@ export default function ApplicationPage() {
                 </label>
               </div>
 
-              {uploadedFiles.length > 0 && (
+              {uploadedDocuments.length > 0 && (
                 <div className="mt-4">
-                  <h3 className="text-sm font-medium mb-2">Uploaded Files:</h3>
+                  <h3 className="text-sm font-medium mb-2">Uploaded Documents:</h3>
                   <ul className="space-y-2">
-                    {uploadedFiles.map((file, index) => (
+                    {uploadedDocuments.map((doc, index) => (
                       <li key={index} className="flex items-center justify-between bg-muted p-2 rounded-md">
-                        <span className="text-sm truncate max-w-[80%]">{file.name}</span>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeFile(index)}>
-                          Remove
-                        </Button>
+                        <div className="flex items-center space-x-2 max-w-[80%]">
+                          {doc.status === "uploading" ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                          ) : doc.status === "success" ? (
+                            <CheckCircle className="h-4 w-4 text-emerald-600" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          )}
+                          <span className="text-sm truncate">{doc.name}</span>
+                        </div>
+                        {doc.status === "uploading" ? (
+                          <div className="w-24">
+                            <Progress value={doc.progress} className="h-2" />
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeDocument(index)}
+                            disabled={doc.status === "uploading"}
+                          >
+                            Remove
+                          </Button>
+                        )}
                       </li>
                     ))}
                   </ul>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Note: Document upload is currently in preview mode. Files are not being stored yet.
-                  </p>
                 </div>
               )}
             </div>
