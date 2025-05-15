@@ -9,7 +9,7 @@ export async function submitApplication(formData: any) {
     console.log("Application submitted:", {
       businessName: formData.businessName,
       ownerName: formData.ownerName,
-      ownerEmail: formData.ownerEmail,
+      ownerEmail: formData.ownerEmail,info@easyservices.info
       requestedAmount: formData.requestedAmount,
       // other fields...
     })
