@@ -13,6 +13,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { submitApplication } from "./actions"
+import { toast } from "@/components/ui/use-toast"
+import { ToastAction } from "@/components/ui/toast"
+import { Toaster } from "@/components/ui/toaster"
 
 export default function ApplicationPage() {
   const router = useRouter()
@@ -110,25 +114,46 @@ export default function ApplicationPage() {
     e.preventDefault()
 
     if (!validateForm()) {
+      toast({
+        title: "Form Validation Error",
+        description: "Please fill in all required fields correctly.",
+        variant: "destructive",
+      })
       return
     }
 
     setIsSubmitting(true)
 
     try {
-      // Simulate form submission
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Submit the application
+      const result = await submitApplication(formData)
 
-      // Redirect to success page
-      router.push("/apply/success")
+      if (result.success) {
+        // Redirect to success page
+        router.push("/apply/success")
+      } else {
+        throw new Error(result.error || "Failed to submit application")
+      }
     } catch (error) {
       console.error("Error submitting application:", error)
       setIsSubmitting(false)
+
+      toast({
+        title: "Submission Error",
+        description: "There was a problem submitting your application. Please try again.",
+        variant: "destructive",
+        action: (
+          <ToastAction altText="Try again" onClick={() => handleSubmit(e)}>
+            Try again
+          </ToastAction>
+        ),
+      })
     }
   }
 
   return (
     <div className="container max-w-4xl py-10">
+      <Toaster />
       <Link href="/" className="flex items-center text-sm text-muted-foreground hover:text-emerald-600 mb-6">
         <ArrowLeft className="mr-2 h-4 w-4" />
         Back to Home
