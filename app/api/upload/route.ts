@@ -1,48 +1,32 @@
 import { NextResponse } from "next/server"
-import { put } from "@vercel/blob"
+import { list } from "@vercel/blob"
 
-export async function POST(request: Request) {
+export async function GET() {
   try {
-    const formData = await request.formData()
-    const file = formData.get("file") as File
-
-    if (!file) {
-      console.error("No file provided in the request")
-      return NextResponse.json({ error: "No file provided" }, { status: 400 })
-    }
-
-    console.log(`Attempting to upload file: ${file.name}, size: ${file.size} bytes, type: ${file.type}`)
-
-    // Generate a unique filename to prevent collisions
-    const timestamp = Date.now()
-    const uniqueFilename = `${timestamp}-${file.name.replace(/\s+/g, "-")}`
-
-    // Upload to Vercel Blob
-    const blob = await put(uniqueFilename, file, {
-      access: "public",
-    })
-
-    console.log(`File uploaded successfully: ${blob.url}`)
+    // Try to list blobs (this will fail if the token is invalid)
+    const blobs = await list()
 
     return NextResponse.json({
       success: true,
-      url: blob.url,
-      name: file.name,
+      message: "Blob integration is working correctly",
+      blobCount: blobs.blobs.length,
     })
   } catch (error) {
-    console.error("Error uploading file:", error)
+    console.error("Error testing Blob:", error)
 
-    // Detailed error response
+    // Check if the error is related to missing or invalid token
     const errorMessage = error instanceof Error ? error.message : "Unknown error"
-    const errorStack = error instanceof Error ? error.stack : undefined
+    const isTokenError = errorMessage.includes("token") || errorMessage.includes("unauthorized")
 
     return NextResponse.json(
       {
-        error: "Failed to upload file",
-        details: errorMessage,
-        stack: process.env.NODE_ENV === "development" ? errorStack : undefined,
+        success: false,
+        message: "Blob integration test failed",
+        isTokenError,
+        error: errorMessage,
       },
       { status: 500 },
     )
   }
 }
+
