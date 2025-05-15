@@ -1,267 +1,600 @@
+"use client"
+
+import type React from "react"
+
+import { useState, useCallback } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { BadgeDollarSign, ArrowLeft, Upload, Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
-import { ArrowRight, BadgeDollarSign, Building, Clock } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Progress } from "@/components/ui/progress"
+import { submitApplication } from "./actions"
 
-export default function Home() {
+type UploadedDocument = {
+  name: string
+  url: string
+  status: "uploading" | "success" | "error"
+  progress: number
+  error?: string
+}
+
+export default function ApplicationPage() {
+  const router = useRouter()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([])
+  const [formData, setFormData] = useState({
+    businessName: "",
+    businessAddress: "",
+    businessCity: "",
+    businessState: "",
+    businessZip: "",
+    yearsInBusiness: "",
+    ownerName: "",
+    ownerEmail: "",
+    ownerPhone: "",
+    monthlyRevenue: "",
+    requestedAmount: "",
+    useOfFunds: "",
+  })
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
+
+    // Clear error when field is edited
+    if (errors[name]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev }
+        delete newErrors[name]
+        return newErrors
+      })
+    }
+  }
+
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }))
+
+    // Clear error when field is edited
+    if (errors[name]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev }
+        delete newErrors[name]
+        return newErrors
+      })
+    }
+  }
+
+  const uploadFile = useCallback(
+    async (file: File) => {
+      // Create a new document entry with "uploading" status
+      const newDocument: UploadedDocument = {
+        name: file.name,
+        url: "",
+        status: "uploading",
+        progress: 0,
+      }
+
+      // Add the new document to the state
+      setUploadedDocuments((prev) => [...prev, newDocument])
+
+      // Get the index of the new document
+      const documentIndex = uploadedDocuments.length
+
+      try {
+        // Create form data for the file
+        const formData = new FormData()
+        formData.append("file", file)
+
+        // Simulate progress updates
+        const progressInterval = setInterval(() => {
+          setUploadedDocuments((prev) => {
+            const updated = [...prev]
+            if (updated[documentIndex] && updated[documentIndex].status === "uploading") {
+              updated[documentIndex] = {
+                ...updated[documentIndex],
+                progress: Math.min(updated[documentIndex].progress + 10, 90),
+              }
+            }
+            return updated
+          })
+        }, 300)
+
+        console.log(`Uploading file: ${file.name}, size: ${file.size} bytes`)
+
+        // Upload the file
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        })
+
+        clearInterval(progressInterval)
+
+        // Parse the response
+        const result = await response.json()
+
+        if (!response.ok) {
+          throw new Error(result.error || result.details || "Failed to upload file")
+        }
+
+        console.log("Upload response:", result)
+
+        // Update the document with the URL and success status
+        setUploadedDocuments((prev) => {
+          const updated = [...prev]
+          if (updated[documentIndex]) {
+            updated[documentIndex] = {
+              name: result.name,
+              url: result.url,
+              status: "success",
+              progress: 100,
+            }
+          }
+          return updated
+        })
+
+        console.log(`File uploaded successfully: ${result.url}`)
+        return result.url
+      } catch (error) {
+        console.error("Error uploading file:", error)
+
+        // Update the document with error status
+        setUploadedDocuments((prev) => {
+          const updated = [...prev]
+          if (updated[documentIndex]) {
+            updated[documentIndex] = {
+              ...updated[documentIndex],
+              status: "error",
+              progress: 100,
+              error: error instanceof Error ? error.message : "Unknown error",
+            }
+          }
+          return updated
+        })
+
+        setSubmitError(`Failed to upload document: ${error instanceof Error ? error.message : "Unknown error"}`)
+        return null
+      }
+    },
+    [uploadedDocuments.length],
+  )
+
+  const handleFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0) {
+        const files = Array.from(e.target.files)
+        console.log(`Selected ${files.length} files for upload`)
+
+        // Clear any previous errors
+        setSubmitError(null)
+
+        // Upload each file
+        for (const file of files) {
+          await uploadFile(file)
+        }
+      }
+    },
+    [uploadFile],
+  )
+
+  const removeDocument = useCallback((index: number) => {
+    setUploadedDocuments((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const validateForm = useCallback(() => {
+    const newErrors: Record<string, string> = {}
+
+    // Required fields
+    const requiredFields = [
+      { key: "businessName", label: "Business name" },
+      { key: "businessAddress", label: "Business address" },
+      { key: "businessCity", label: "City" },
+      { key: "businessState", label: "State" },
+      { key: "businessZip", label: "ZIP code" },
+      { key: "yearsInBusiness", label: "Years in business" },
+      { key: "ownerName", label: "Owner name" },
+      { key: "ownerEmail", label: "Email" },
+      { key: "ownerPhone", label: "Phone" },
+      { key: "monthlyRevenue", label: "Monthly revenue" },
+      { key: "requestedAmount", label: "Requested amount" },
+      { key: "useOfFunds", label: "Use of funds" },
+    ]
+
+    requiredFields.forEach((field) => {
+      if (!formData[field.key as keyof typeof formData]) {
+        newErrors[field.key] = `${field.label} is required`
+      }
+    })
+
+    // Email validation
+    if (formData.ownerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.ownerEmail)) {
+      newErrors.ownerEmail = "Please enter a valid email address"
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }, [formData])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitError(null)
+
+    if (!validateForm()) {
+      setSubmitError("Please fill in all required fields correctly.")
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      console.log("Submitting form data:", formData)
+
+      // Check if any documents are still uploading
+      const stillUploading = uploadedDocuments.some((doc) => doc.status === "uploading")
+      if (stillUploading) {
+        setSubmitError("Please wait for all documents to finish uploading.")
+        setIsSubmitting(false)
+        return
+      }
+
+      // Prepare the documents data
+      const successfulDocuments = uploadedDocuments
+        .filter((doc) => doc.status === "success")
+        .map(({ name, url }) => ({ name, url }))
+
+      console.log("Documents to submit:", successfulDocuments)
+
+      // Submit the application with documents
+      const result = await submitApplication({
+        ...formData,
+        documents: successfulDocuments,
+      })
+
+      console.log("Submission result:", result)
+
+      if (result.success) {
+        setSubmitSuccess(true)
+
+        // Store in localStorage for backup
+        try {
+          const applications = JSON.parse(localStorage.getItem("applications") || "[]")
+          applications.push({
+            ...formData,
+            documents: successfulDocuments,
+            submittedAt: new Date().toISOString(),
+          })
+          localStorage.setItem("applications", JSON.stringify(applications))
+        } catch (err) {
+          console.error("Error saving to localStorage:", err)
+        }
+
+        // Redirect to success page
+        setTimeout(() => {
+          router.push("/apply/success")
+        }, 1000)
+      } else {
+        throw new Error(result.error || "Failed to submit application")
+      }
+    } catch (error: any) {
+      console.error("Error submitting application:", error)
+      setIsSubmitting(false)
+      setSubmitError(error.message || "There was a problem submitting your application. Please try again.")
+    }
+  }
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2 font-bold">
-            <BadgeDollarSign className="h-6 w-6 text-emerald-600" />
-            <span className="text-xl">Easy Services</span>
-          </div>
-          <nav className="hidden md:flex gap-6">
-            <Link href="#how-it-works" className="text-sm font-medium transition-colors hover:text-emerald-600">
-              How It Works
-            </Link>
-            <Link href="#benefits" className="text-sm font-medium transition-colors hover:text-emerald-600">
-              Benefits
-            </Link>
-            <Link href="#faq" className="text-sm font-medium transition-colors hover:text-emerald-600">
-              FAQ
-            </Link>
-            <Link href="/apply" className="text-sm font-medium transition-colors hover:text-emerald-600">
-              Apply Now
-            </Link>
-          </nav>
-          <div className="flex items-center gap-4">
-            <Link href="/apply" passHref>
-              <Button className="bg-emerald-600 hover:bg-emerald-700">
-                Get Funded
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
+    <div className="container max-w-4xl py-10">
+      <Link href="/" className="flex items-center text-sm text-muted-foreground hover:text-emerald-600 mb-6">
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back to Home
+      </Link>
+
+      <div className="flex items-center gap-2 mb-8">
+        <BadgeDollarSign className="h-8 w-8 text-emerald-600" />
+        <h1 className="text-3xl font-bold">Easy Services - Merchant Cash Advance Application</h1>
+      </div>
+
+      {submitError && (
+        <div className="bg-red-50 border border-red-200 text-red-800 rounded-md p-4 mb-6 flex items-start gap-2">
+          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+          <p>{submitError}</p>
         </div>
-      </header>
-      <main className="flex-1">
-        <section className="w-full py-12 md:py-24 lg:py-32 bg-gradient-to-b from-white to-emerald-50">
-          <div className="container px-4 md:px-6">
-            <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
-              <div className="flex flex-col justify-center space-y-4">
+      )}
+
+      {submitSuccess && (
+        <div className="bg-green-50 border border-green-200 text-green-800 rounded-md p-4 mb-6 flex items-start gap-2">
+          <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+          <p>Your application has been submitted successfully! Redirecting...</p>
+        </div>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Business Funding Application</CardTitle>
+          <CardDescription>
+            Fill out the form below to apply for a merchant cash advance with Easy Services. We&apos;ll review your
+            application and get back to you within 24 hours.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-8">
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold">Business Information</h2>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
-                    Fast Business Funding When You Need It Most
-                  </h1>
-                  <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                    Easy Services provides merchant cash advances in as little as 24 hours. No collateral required.
-                    Access $5,000 to $500,000 for your business needs.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2 min-[400px]:flex-row">
-                  <Link href="/apply" passHref>
-                    <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700">
-                      Apply Now
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </Link>
-                  <Link href="#how-it-works" passHref>
-                    <Button size="lg" variant="outline">
-                      Learn More
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-              <div className="flex items-center justify-center">
-                <div className="relative h-[300px] w-full overflow-hidden rounded-xl bg-muted md:h-[400px] lg:h-[500px]">
-                  <img
-                    src="/images/business-funding.jpg"
-                    alt="Business owner reviewing finances"
-                    className="object-cover w-full h-full"
+                  <Label htmlFor="businessName">Business Name</Label>
+                  <Input
+                    id="businessName"
+                    name="businessName"
+                    placeholder="Your Business Name"
+                    value={formData.businessName}
+                    onChange={handleChange}
+                    className={errors.businessName ? "border-red-500" : ""}
                   />
+                  {errors.businessName && <p className="text-sm text-red-500">{errors.businessName}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="yearsInBusiness">Years in Business</Label>
+                  <Select
+                    onValueChange={(value) => handleSelectChange("yearsInBusiness", value)}
+                    value={formData.yearsInBusiness}
+                  >
+                    <SelectTrigger className={errors.yearsInBusiness ? "border-red-500" : ""}>
+                      <SelectValue placeholder="Select years in business" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="less-than-1">Less than 1 year</SelectItem>
+                      <SelectItem value="1-2">1-2 years</SelectItem>
+                      <SelectItem value="3-5">3-5 years</SelectItem>
+                      <SelectItem value="5-10">5-10 years</SelectItem>
+                      <SelectItem value="10+">10+ years</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {errors.yearsInBusiness && <p className="text-sm text-red-500">{errors.yearsInBusiness}</p>}
                 </div>
               </div>
-            </div>
-          </div>
-        </section>
 
-        <section id="how-it-works" className="w-full py-12 md:py-24 lg:py-32">
-          <div className="container px-4 md:px-6">
-            <div className="flex flex-col items-center justify-center space-y-4 text-center">
               <div className="space-y-2">
-                <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-                  How Merchant Cash Advance Works
-                </h2>
-                <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                  A simple process designed to get your business the funding it needs quickly.
-                </p>
+                <Label htmlFor="businessAddress">Business Address</Label>
+                <Input
+                  id="businessAddress"
+                  name="businessAddress"
+                  placeholder="Street Address"
+                  value={formData.businessAddress}
+                  onChange={handleChange}
+                  className={errors.businessAddress ? "border-red-500" : ""}
+                />
+                {errors.businessAddress && <p className="text-sm text-red-500">{errors.businessAddress}</p>}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="businessCity">City</Label>
+                  <Input
+                    id="businessCity"
+                    name="businessCity"
+                    placeholder="City"
+                    value={formData.businessCity}
+                    onChange={handleChange}
+                    className={errors.businessCity ? "border-red-500" : ""}
+                  />
+                  {errors.businessCity && <p className="text-sm text-red-500">{errors.businessCity}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="businessState">State</Label>
+                  <Input
+                    id="businessState"
+                    name="businessState"
+                    placeholder="State"
+                    value={formData.businessState}
+                    onChange={handleChange}
+                    className={errors.businessState ? "border-red-500" : ""}
+                  />
+                  {errors.businessState && <p className="text-sm text-red-500">{errors.businessState}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="businessZip">ZIP Code</Label>
+                  <Input
+                    id="businessZip"
+                    name="businessZip"
+                    placeholder="ZIP Code"
+                    value={formData.businessZip}
+                    onChange={handleChange}
+                    className={errors.businessZip ? "border-red-500" : ""}
+                  />
+                  {errors.businessZip && <p className="text-sm text-red-500">{errors.businessZip}</p>}
+                </div>
               </div>
             </div>
-            <div className="mx-auto grid max-w-5xl items-center gap-6 py-12 lg:grid-cols-3">
-              {[
-                {
-                  title: "1. Apply Online",
-                  description: "Fill out our simple application form and upload your last 3 months of bank statements.",
-                  icon: <Building className="h-10 w-10 text-emerald-600" />,
-                  image: "/images/business-owner.jpg",
-                },
-                {
-                  title: "2. Get Approved",
-                  description:
-                    "Receive a funding decision within 24 hours with flexible terms tailored to your business.",
-                  icon: <Clock className="h-10 w-10 text-emerald-600" />,
-                  image: "/images/funding-process.jpg",
-                },
-                {
-                  title: "3. Receive Funds",
-                  description: "Once approved, funds are deposited directly into your business bank account.",
-                  icon: <BadgeDollarSign className="h-10 w-10 text-emerald-600" />,
-                  image: "/images/business-funding.jpg",
-                },
-              ].map((step, index) => (
-                <div key={index} className="flex flex-col items-center space-y-4 rounded-lg border p-6">
-                  <div className="h-40 w-full mb-2 overflow-hidden rounded-lg">
-                    <img
-                      src={step.image || "/placeholder.svg"}
-                      alt={step.title}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  {step.icon}
-                  <h3 className="text-xl font-bold">{step.title}</h3>
-                  <p className="text-center text-muted-foreground">{step.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
 
-        <section id="benefits" className="w-full py-12 md:py-24 lg:py-32 bg-emerald-50">
-          <div className="container px-4 md:px-6">
-            <div className="flex flex-col items-center justify-center space-y-4 text-center">
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold">Owner Information</h2>
+
               <div className="space-y-2">
-                <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-                  Benefits of Our Merchant Cash Advance
-                </h2>
-                <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                  Why thousands of businesses choose our funding solutions.
-                </p>
+                <Label htmlFor="ownerName">Owner Name</Label>
+                <Input
+                  id="ownerName"
+                  name="ownerName"
+                  placeholder="Full Name"
+                  value={formData.ownerName}
+                  onChange={handleChange}
+                  className={errors.ownerName ? "border-red-500" : ""}
+                />
+                {errors.ownerName && <p className="text-sm text-red-500">{errors.ownerName}</p>}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="ownerEmail">Email</Label>
+                  <Input
+                    id="ownerEmail"
+                    name="ownerEmail"
+                    type="email"
+                    placeholder="Email"
+                    value={formData.ownerEmail}
+                    onChange={handleChange}
+                    className={errors.ownerEmail ? "border-red-500" : ""}
+                  />
+                  {errors.ownerEmail && <p className="text-sm text-red-500">{errors.ownerEmail}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="ownerPhone">Phone</Label>
+                  <Input
+                    id="ownerPhone"
+                    name="ownerPhone"
+                    placeholder="Phone Number"
+                    value={formData.ownerPhone}
+                    onChange={handleChange}
+                    className={errors.ownerPhone ? "border-red-500" : ""}
+                  />
+                  {errors.ownerPhone && <p className="text-sm text-red-500">{errors.ownerPhone}</p>}
+                </div>
               </div>
             </div>
-            <div className="grid gap-6 pt-8 md:grid-cols-2 lg:grid-cols-3">
-              {[
-                {
-                  title: "Fast Approval",
-                  description: "Get approved in as little as 24 hours, not weeks or months like traditional loans.",
-                },
-                {
-                  title: "Simple Repayment",
-                  description: "Repayments are made as a percentage of your daily credit card sales.",
-                },
-                {
-                  title: "No Collateral Required",
-                  description: "Unsecured funding means your business assets remain free and clear.",
-                },
-                {
-                  title: "Bad Credit Accepted",
-                  description: "We focus on your business performance, not just your credit score.",
-                },
-                {
-                  title: "Flexible Use of Funds",
-                  description: "Use the money for inventory, equipment, marketing, or any business need.",
-                },
-                {
-                  title: "High Approval Rate",
-                  description: "We approve 85% of applications, much higher than traditional bank loans.",
-                },
-              ].map((benefit, index) => (
-                <div key={index} className="flex flex-col space-y-2 rounded-lg border bg-white p-6">
-                  <h3 className="text-xl font-bold">{benefit.title}</h3>
-                  <p className="text-muted-foreground">{benefit.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
 
-        <section id="faq" className="w-full py-12 md:py-24 lg:py-32">
-          <div className="container px-4 md:px-6">
-            <div className="flex flex-col items-center justify-center space-y-4 text-center">
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold">Financial Information</h2>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="monthlyRevenue">Monthly Revenue</Label>
+                  <Select
+                    onValueChange={(value) => handleSelectChange("monthlyRevenue", value)}
+                    value={formData.monthlyRevenue}
+                  >
+                    <SelectTrigger className={errors.monthlyRevenue ? "border-red-500" : ""}>
+                      <SelectValue placeholder="Select monthly revenue" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10k-25k">$10,000 - $25,000</SelectItem>
+                      <SelectItem value="25k-50k">$25,000 - $50,000</SelectItem>
+                      <SelectItem value="50k-100k">$50,000 - $100,000</SelectItem>
+                      <SelectItem value="100k-250k">$100,000 - $250,000</SelectItem>
+                      <SelectItem value="250k+">$250,000+</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {errors.monthlyRevenue && <p className="text-sm text-red-500">{errors.monthlyRevenue}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="requestedAmount">Requested Amount</Label>
+                  <Select
+                    onValueChange={(value) => handleSelectChange("requestedAmount", value)}
+                    value={formData.requestedAmount}
+                  >
+                    <SelectTrigger className={errors.requestedAmount ? "border-red-500" : ""}>
+                      <SelectValue placeholder="Select requested amount" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5k-25k">$5,000 - $25,000</SelectItem>
+                      <SelectItem value="25k-50k">$25,000 - $50,000</SelectItem>
+                      <SelectItem value="50k-100k">$50,000 - $100,000</SelectItem>
+                      <SelectItem value="100k-250k">$100,000 - $250,000</SelectItem>
+                      <SelectItem value="250k+">$250,000+</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {errors.requestedAmount && <p className="text-sm text-red-500">{errors.requestedAmount}</p>}
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">Frequently Asked Questions</h2>
-                <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                  Get answers to common questions about our merchant cash advance program.
-                </p>
+                <Label htmlFor="useOfFunds">Use of Funds</Label>
+                <Textarea
+                  id="useOfFunds"
+                  name="useOfFunds"
+                  placeholder="Please describe how you plan to use the funds..."
+                  className={`min-h-[100px] ${errors.useOfFunds ? "border-red-500" : ""}`}
+                  value={formData.useOfFunds}
+                  onChange={handleChange}
+                />
+                {errors.useOfFunds && <p className="text-sm text-red-500">{errors.useOfFunds}</p>}
               </div>
             </div>
-            <div className="mx-auto max-w-3xl space-y-4 pt-8">
-              {[
-                {
-                  question: "What is a Merchant Cash Advance?",
-                  answer:
-                    "A Merchant Cash Advance is not a loan, but a purchase of your future credit card sales. We provide you with a lump sum of capital, and in return, we collect a percentage of your daily credit card sales until the advance is paid back.",
-                },
-                {
-                  question: "How much funding can I get?",
-                  answer:
-                    "Funding amounts typically range from $5,000 to $500,000, depending on your business's monthly revenue and time in business.",
-                },
-                {
-                  question: "What are the requirements to qualify?",
-                  answer:
-                    "To qualify, your business should be operational for at least 6 months, have a minimum of $10,000 in monthly revenue, and have at least 3 months of bank statements to review.",
-                },
-                {
-                  question: "How long does the application process take?",
-                  answer:
-                    "Our application process is quick and straightforward. You can complete the application in minutes, and receive a funding decision within 24 hours.",
-                },
-                {
-                  question: "How is a Merchant Cash Advance different from a traditional loan?",
-                  answer:
-                    "Unlike traditional loans with fixed monthly payments, a Merchant Cash Advance is repaid through a percentage of your daily credit card sales. This means payments flex with your business – you pay less on slow days and more on busy days.",
-                },
-              ].map((faq, index) => (
-                <div key={index} className="rounded-lg border p-6">
-                  <h3 className="text-lg font-bold">{faq.question}</h3>
-                  <p className="mt-2 text-muted-foreground">{faq.answer}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
 
-        <section className="w-full py-12 md:py-24 lg:py-32 bg-emerald-600 text-white">
-          <div className="container grid items-center gap-6 px-4 md:px-6 lg:grid-cols-2 lg:gap-10">
-            <div className="space-y-2">
-              <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">Ready to grow your business?</h2>
-              <p className="max-w-[600px] opacity-90 md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                Apply now and get the funding you need in as little as 24 hours.
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold">Document Upload</h2>
+              <p className="text-sm text-muted-foreground">
+                Please upload your last 3 months of bank statements and any other relevant documents.
               </p>
+
+              <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
+                <p className="mb-2 text-sm text-muted-foreground">Drag and drop files here, or click to select files</p>
+                <Input type="file" multiple className="hidden" id="file-upload" onChange={handleFileChange} />
+                <label htmlFor="file-upload">
+                  <Button type="button" variant="outline" className="mt-2">
+                    Select Files
+                  </Button>
+                </label>
+              </div>
+
+              {uploadedDocuments.length > 0 && (
+                <div className="mt-4">
+                  <h3 className="text-sm font-medium mb-2">Uploaded Documents:</h3>
+                  <ul className="space-y-2">
+                    {uploadedDocuments.map((doc, index) => (
+                      <li key={index} className="flex items-center justify-between bg-muted p-2 rounded-md">
+                        <div className="flex items-center space-x-2 max-w-[80%]">
+                          {doc.status === "uploading" ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                          ) : doc.status === "success" ? (
+                            <CheckCircle className="h-4 w-4 text-emerald-600" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          )}
+                          <span className="text-sm truncate">{doc.name}</span>
+                        </div>
+                        {doc.status === "uploading" ? (
+                          <div className="w-24">
+                            <Progress value={doc.progress} className="h-2" />
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeDocument(index)}
+                            disabled={doc.status === "uploading"}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  {uploadedDocuments.some((doc) => doc.status === "error") && (
+                    <p className="text-xs text-red-500 mt-2">
+                      Some documents failed to upload. Please remove them and try again.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="flex flex-col gap-2 min-[400px]:flex-row lg:justify-end">
-              <Link href="/apply" passHref>
-                <Button size="lg" className="bg-white text-emerald-600 hover:bg-gray-100">
-                  Apply Now
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
-              <Button size="lg" variant="outline" className="border-white text-white hover:bg-emerald-700">
-                Contact Us
-              </Button>
-            </div>
-          </div>
-        </section>
-      </main>
-      <footer className="border-t py-6 md:py-0">
-        <div className="container flex flex-col items-center justify-between gap-4 md:h-24 md:flex-row">
-          <p className="text-center text-sm leading-loose text-muted-foreground md:text-left">
-            © {new Date().getFullYear()} Easy Services. All rights reserved.
-          </p>
-          <div className="flex gap-4">
-            <Link href="#" className="text-sm font-medium transition-colors hover:text-emerald-600">
-              Terms
-            </Link>
-            <Link href="#" className="text-sm font-medium transition-colors hover:text-emerald-600">
-              Privacy
-            </Link>
-            <Link href="#" className="text-sm font-medium transition-colors hover:text-emerald-600">
-              Contact
-            </Link>
-          </div>
-        </div>
-      </footer>
+
+            <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={isSubmitting}>
+              {isSubmitting ? "Submitting..." : "Submit Application"}
+            </Button>
+
+            <p className="text-xs text-center text-muted-foreground">
+              By submitting this application, you agree to Easy Services' Terms of Service and Privacy Policy. We will
+              review your application and contact you within 24 hours.
+            </p>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   )
 }
