@@ -3,8 +3,8 @@
 import { Resend } from "resend"
 
 // Initialize Resend with your API key
-// You'll need to add RESEND_API_KEY to your environment variables
-const resend = new Resend(process.env.RESEND_API_KEY)
+const resendApiKey = process.env.RESEND_API_KEY
+const resend = new Resend(resendApiKey)
 
 // Define the application data type
 type ApplicationData = {
@@ -23,10 +23,16 @@ type ApplicationData = {
 }
 
 export async function submitApplication(formData: ApplicationData) {
+  console.log("Submitting application with data:", formData)
+  console.log("Using Resend API Key:", resendApiKey ? "API key is set" : "API key is missing")
+
   try {
+    // For testing purposes, let's log what we're about to do
+    console.log("Attempting to send email to info@easyservices.info")
+
     // Send email notification
-    const { data, error } = await resend.emails.send({
-      from: "Easy Services <applications@easyservices.info>",
+    const emailResult = await resend.emails.send({
+      from: "Easy Services <onboarding@resend.dev>", // Use Resend's default sender for testing
       to: "info@easyservices.info",
       subject: `New MCA Application: ${formData.businessName}`,
       html: `
@@ -56,18 +62,23 @@ export async function submitApplication(formData: ApplicationData) {
       `,
     })
 
-    if (error) {
-      console.error("Error sending email:", error)
-      throw new Error("Failed to send email notification")
+    console.log("Email send result:", emailResult)
+
+    if (emailResult.error) {
+      console.error("Error sending email:", emailResult.error)
+      return { success: false, error: `Failed to send email: ${emailResult.error.message}` }
     }
 
-    // Log the application data (for now, until you implement Google Sheets later)
-    console.log("Application submitted:", formData)
+    // Log the application data
+    console.log("Application submitted successfully:", formData)
 
     // Return success
     return { success: true }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error processing application:", error)
-    return { success: false, error: "Failed to process application" }
+    return {
+      success: false,
+      error: `Failed to process application: ${error.message || "Unknown error"}`,
+    }
   }
 }

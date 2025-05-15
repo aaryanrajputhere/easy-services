@@ -14,12 +14,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { submitApplication } from "./actions"
-import { toast } from "@/components/ui/use-toast"
-import { ToastAction } from "@/components/ui/toast"
-import { Toaster } from "@/components/ui/toaster"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function ApplicationPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [formData, setFormData] = useState({
@@ -123,37 +122,88 @@ export default function ApplicationPage() {
     }
 
     setIsSubmitting(true)
+    toast({
+      title: "Submitting Application",
+      description: "Please wait while we process your application...",
+    })
 
     try {
+      // For debugging
+      console.log("Submitting form with data:", formData)
+
       // Submit the application
       const result = await submitApplication(formData)
+      console.log("Submission result:", result)
 
       if (result.success) {
+        toast({
+          title: "Application Submitted",
+          description: "Your application has been submitted successfully!",
+        })
+
         // Redirect to success page
         router.push("/apply/success")
       } else {
         throw new Error(result.error || "Failed to submit application")
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting application:", error)
       setIsSubmitting(false)
 
       toast({
         title: "Submission Error",
-        description: "There was a problem submitting your application. Please try again.",
+        description: error.message || "There was a problem submitting your application. Please try again.",
         variant: "destructive",
-        action: (
-          <ToastAction altText="Try again" onClick={() => handleSubmit(e)}>
-            Try again
-          </ToastAction>
-        ),
       })
+    }
+  }
+
+  // For testing purposes - simplified form for quick testing
+  const handleQuickSubmit = async () => {
+    setIsSubmitting(true)
+
+    const testData = {
+      businessName: "Test Business",
+      businessAddress: "123 Test St",
+      businessCity: "Test City",
+      businessState: "TS",
+      businessZip: "12345",
+      yearsInBusiness: "1-2",
+      ownerName: "Test Owner",
+      ownerEmail: "test@example.com",
+      ownerPhone: "1234567890",
+      monthlyRevenue: "10k-25k",
+      requestedAmount: "5k-25k",
+      useOfFunds: "Testing the application form",
+    }
+
+    try {
+      console.log("Submitting test data:", testData)
+      const result = await submitApplication(testData)
+      console.log("Test submission result:", result)
+
+      if (result.success) {
+        toast({
+          title: "Test Successful",
+          description: "The test submission was successful!",
+        })
+      } else {
+        throw new Error(result.error || "Test submission failed")
+      }
+    } catch (error: any) {
+      console.error("Test submission error:", error)
+      toast({
+        title: "Test Failed",
+        description: error.message || "The test submission failed.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   return (
     <div className="container max-w-4xl py-10">
-      <Toaster />
       <Link href="/" className="flex items-center text-sm text-muted-foreground hover:text-emerald-600 mb-6">
         <ArrowLeft className="mr-2 h-4 w-4" />
         Back to Home
@@ -163,6 +213,15 @@ export default function ApplicationPage() {
         <BadgeDollarSign className="h-8 w-8 text-emerald-600" />
         <h1 className="text-3xl font-bold">Easy Services - Merchant Cash Advance Application</h1>
       </div>
+
+      {/* Test button for debugging - remove in production */}
+      <Button
+        onClick={handleQuickSubmit}
+        className="mb-4 bg-gray-200 text-gray-800 hover:bg-gray-300"
+        disabled={isSubmitting}
+      >
+        Test Submission (Debug)
+      </Button>
 
       <Card>
         <CardHeader>
@@ -402,6 +461,9 @@ export default function ApplicationPage() {
                       </li>
                     ))}
                   </ul>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Note: Document upload is currently in preview mode. Files are not being stored yet.
+                  </p>
                 </div>
               )}
             </div>
