@@ -1,12 +1,12 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { CheckCircle2 } from "lucide-react"
+import { CheckCircle } from "lucide-react"
 
 export default function SuccessPage() {
   return (
     <div className="container max-w-md py-20">
       <div className="flex flex-col items-center text-center space-y-6">
-        <CheckCircle2 className="h-20 w-20 text-emerald-600" />
+        <CheckCircle className="h-20 w-20 text-emerald-600" />
 
         <h1 className="text-3xl font-bold">Application Submitted!</h1>
 
