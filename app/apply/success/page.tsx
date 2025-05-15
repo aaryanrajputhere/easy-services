@@ -11,8 +11,8 @@ export default function SuccessPage() {
         <h1 className="text-3xl font-bold">Application Submitted!</h1>
 
         <p className="text-muted-foreground">
-          Thank you for submitting your merchant cash advance application. Our team will review your information and
-          contact you within 24 hours.
+          Thank you for submitting your merchant cash advance application to Easy Services. Our team will review your
+          information and contact you within 24 hours.
         </p>
 
         <div className="space-y-2">

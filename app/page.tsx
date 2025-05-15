@@ -9,7 +9,7 @@ export default function Home() {
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2 font-bold">
             <BadgeDollarSign className="h-6 w-6 text-emerald-600" />
-            <span className="text-xl">Capital Advance Solutions</span>
+            <span className="text-xl">Easy Services</span>
           </div>
           <nav className="hidden md:flex gap-6">
             <Link href="#how-it-works" className="text-sm font-medium transition-colors hover:text-emerald-600">
@@ -45,8 +45,8 @@ export default function Home() {
                     Fast Business Funding When You Need It Most
                   </h1>
                   <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                    Get approved for a merchant cash advance in as little as 24 hours. No collateral required. Access
-                    $5,000 to $500,000 for your business needs.
+                    Easy Services provides merchant cash advances in as little as 24 hours. No collateral required.
+                    Access $5,000 to $500,000 for your business needs.
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 min-[400px]:flex-row">
@@ -66,7 +66,7 @@ export default function Home() {
               <div className="flex items-center justify-center">
                 <div className="relative h-[300px] w-full overflow-hidden rounded-xl bg-muted md:h-[400px] lg:h-[500px]">
                   <img
-                    src="/placeholder.svg?height=500&width=500"
+                    src="/images/business-funding.jpg"
                     alt="Business owner reviewing finances"
                     className="object-cover w-full h-full"
                   />
@@ -94,20 +94,30 @@ export default function Home() {
                   title: "1. Apply Online",
                   description: "Fill out our simple application form and upload your last 3 months of bank statements.",
                   icon: <Building className="h-10 w-10 text-emerald-600" />,
+                  image: "/images/business-owner.jpg",
                 },
                 {
                   title: "2. Get Approved",
                   description:
                     "Receive a funding decision within 24 hours with flexible terms tailored to your business.",
                   icon: <Clock className="h-10 w-10 text-emerald-600" />,
+                  image: "/images/funding-process.jpg",
                 },
                 {
                   title: "3. Receive Funds",
                   description: "Once approved, funds are deposited directly into your business bank account.",
                   icon: <BadgeDollarSign className="h-10 w-10 text-emerald-600" />,
+                  image: "/images/business-funding.jpg",
                 },
               ].map((step, index) => (
                 <div key={index} className="flex flex-col items-center space-y-4 rounded-lg border p-6">
+                  <div className="h-40 w-full mb-2 overflow-hidden rounded-lg">
+                    <img
+                      src={step.image || "/placeholder.svg"}
+                      alt={step.title}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
                   {step.icon}
                   <h3 className="text-xl font-bold">{step.title}</h3>
                   <p className="text-center text-muted-foreground">{step.description}</p>
@@ -237,7 +247,7 @@ export default function Home() {
       <footer className="border-t py-6 md:py-0">
         <div className="container flex flex-col items-center justify-between gap-4 md:h-24 md:flex-row">
           <p className="text-center text-sm leading-loose text-muted-foreground md:text-left">
-            © {new Date().getFullYear()} Capital Advance Solutions. All rights reserved.
+            © {new Date().getFullYear()} Easy Services. All rights reserved.
           </p>
           <div className="flex gap-4">
             <Link href="#" className="text-sm font-medium transition-colors hover:text-emerald-600">

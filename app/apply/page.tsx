@@ -136,15 +136,15 @@ export default function ApplicationPage() {
 
       <div className="flex items-center gap-2 mb-8">
         <BadgeDollarSign className="h-8 w-8 text-emerald-600" />
-        <h1 className="text-3xl font-bold">Merchant Cash Advance Application</h1>
+        <h1 className="text-3xl font-bold">Easy Services - Merchant Cash Advance Application</h1>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Business Funding Application</CardTitle>
           <CardDescription>
-            Fill out the form below to apply for a merchant cash advance. We&apos;ll review your application and get
-            back to you within 24 hours.
+            Fill out the form below to apply for a merchant cash advance with Easy Services. We&apos;ll review your
+            application and get back to you within 24 hours.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -386,8 +386,8 @@ export default function ApplicationPage() {
             </Button>
 
             <p className="text-xs text-center text-muted-foreground">
-              By submitting this application, you agree to our Terms of Service and Privacy Policy. We will review your
-              application and contact you within 24 hours.
+              By submitting this application, you agree to Easy Services' Terms of Service and Privacy Policy. We will
+              review your application and contact you within 24 hours.
             </p>
           </form>
         </CardContent>
