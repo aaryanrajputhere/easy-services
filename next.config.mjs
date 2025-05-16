@@ -11,6 +11,20 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Add this to ensure proper domain handling
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=3600, s-maxage=86400',
+          },
+        ],
+      },
+    ]
+  },
 }
 
 export default nextConfig
