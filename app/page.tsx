@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, BadgeDollarSign, Building, Clock } from "lucide-react"
-import { ImageDisplay } from "@/components/ui/image-display"
+import { EnhancedImage } from "@/components/ui/enhanced-image"
 
 export default function Home() {
   return (
@@ -66,7 +66,7 @@ export default function Home() {
               </div>
               <div className="flex items-center justify-center">
                 <div className="relative h-[300px] w-full overflow-hidden rounded-xl bg-muted md:h-[400px] lg:h-[500px]">
-                  <ImageDisplay
+                  <EnhancedImage
                     src="/images/business-funding.jpg"
                     alt="Business owner reviewing finances"
                     className="object-cover w-full h-full"
@@ -117,8 +117,8 @@ export default function Home() {
               ].map((step, index) => (
                 <div key={index} className="flex flex-col items-center space-y-4 rounded-lg border p-6">
                   <div className="h-40 w-full mb-2 overflow-hidden rounded-lg">
-                    <ImageDisplay
-                      src={step.image || "/placeholder.svg"}
+                    <EnhancedImage
+                      src={step.image}
                       alt={step.title}
                       className="h-full w-full object-cover"
                       fallbackSrc={step.fallback}

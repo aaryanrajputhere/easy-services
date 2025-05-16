@@ -2,10 +2,10 @@
 
 import type React from "react"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { BadgeDollarSign, ArrowLeft, Upload, Loader2, CheckCircle, XCircle, AlertCircle, RefreshCw } from "lucide-react"
+import { BadgeDollarSign, ArrowLeft, AlertCircle, CheckCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,21 +13,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Progress } from "@/components/ui/progress"
+import { DocumentUploader, type UploadedDocument } from "@/components/ui/document-uploader"
 import { submitApplication } from "./actions"
-
-type UploadedDocument = {
-  id: string
-  name: string
-  url: string
-  status: "uploading" | "success" | "error"
-  progress: number
-  error?: string
-}
 
 export default function ApplicationPage() {
   const router = useRouter()
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([])
   const [formData, setFormData] = useState({
@@ -47,7 +37,7 @@ export default function ApplicationPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState(false)
-  const [blobError, setBlobError] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -76,150 +66,14 @@ export default function ApplicationPage() {
     }
   }
 
-  // This is the key function that handles file uploads
-  const uploadFile = useCallback(async (file: File) => {
-    // Generate a unique ID for this upload
-    const uploadId = `upload-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
-
-    // Create a new document entry with "uploading" status
-    const newDocument: UploadedDocument = {
-      id: uploadId,
-      name: file.name,
-      url: "",
-      status: "uploading",
-      progress: 0,
-    }
-
-    // Add the new document to the state
-    setUploadedDocuments((prev) => [...prev, newDocument])
-
-    try {
-      // Create form data for the file
-      const formData = new FormData()
-      formData.append("file", file)
-
-      // Log what we're about to upload
-      console.log(`Attempting to upload file: ${file.name}, size: ${file.size} bytes, type: ${file.type}`)
-
-      // Simulate progress updates
-      const progressInterval = setInterval(() => {
-        setUploadedDocuments((prev) => {
-          return prev.map((doc) => {
-            if (doc.id === uploadId && doc.status === "uploading") {
-              return {
-                ...doc,
-                progress: Math.min(doc.progress + 10, 90),
-              }
-            }
-            return doc
-          })
-        })
-      }, 300)
-
-      // Upload the file to our API route
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      })
-
-      clearInterval(progressInterval)
-
-      // Check if the request was successful
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }))
-        throw new Error(errorData.error || errorData.message || `Upload failed with status: ${response.status}`)
-      }
-
-      // Parse the response
-      const result = await response.json()
-
-      console.log("Upload response:", result)
-
-      // Update the document with the URL and success status
-      setUploadedDocuments((prev) => {
-        return prev.map((doc) => {
-          if (doc.id === uploadId) {
-            return {
-              ...doc,
-              url: result.url,
-              status: "success",
-              progress: 100,
-            }
-          }
-          return doc
-        })
-      })
-
-      console.log(`File uploaded successfully: ${result.url}`)
-      setBlobError(null)
-      return result.url
-    } catch (error) {
-      console.error("Error uploading file:", error)
-
-      // Update the document with error status
-      setUploadedDocuments((prev) => {
-        return prev.map((doc) => {
-          if (doc.id === uploadId) {
-            return {
-              ...doc,
-              status: "error",
-              progress: 100,
-              error: error instanceof Error ? error.message : "Unknown error",
-            }
-          }
-          return doc
-        })
-      })
-
-      const errorMessage = error instanceof Error ? error.message : "Unknown error"
-      setBlobError(`Failed to upload document: ${errorMessage}`)
-      return null
-    }
+  const handleUploadComplete = useCallback((documents: UploadedDocument[]) => {
+    setUploadedDocuments(documents)
+    setUploadError(null)
   }, [])
 
-  const handleFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files && e.target.files.length > 0) {
-        const files = Array.from(e.target.files)
-        console.log(`Selected ${files.length} files for upload`)
-
-        // Clear any previous errors
-        setSubmitError(null)
-
-        // Upload each file
-        for (const file of files) {
-          await uploadFile(file)
-        }
-
-        // Clear the file input so the same file can be selected again
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ""
-        }
-      }
-    },
-    [uploadFile],
-  )
-
-  const removeDocument = useCallback((id: string) => {
-    setUploadedDocuments((prev) => prev.filter((doc) => doc.id !== id))
+  const handleUploadError = useCallback((error: string) => {
+    setUploadError(error)
   }, [])
-
-  const retryUpload = useCallback(
-    (id: string) => {
-      // Find the document that failed
-      const failedDoc = uploadedDocuments.find((doc) => doc.id === id)
-      if (!failedDoc) return
-
-      // Remove the failed document
-      setUploadedDocuments((prev) => prev.filter((doc) => doc.id !== id))
-
-      // If we have a file input, prompt the user to select the file again
-      if (fileInputRef.current) {
-        fileInputRef.current.click()
-      }
-    },
-    [uploadedDocuments],
-  )
 
   const validateForm = useCallback(() => {
     const newErrors: Record<string, string> = {}
@@ -341,13 +195,13 @@ export default function ApplicationPage() {
         </div>
       )}
 
-      {blobError && (
+      {uploadError && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-md p-4 mb-6 flex items-start gap-2">
           <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
           <div>
-            <p>{blobError}</p>
+            <p>{uploadError}</p>
             <p className="text-sm mt-1">
-              <Link href="/diagnostics" className="underline">
+              <Link href="/advanced-diagnostics" className="underline">
                 Run diagnostics
               </Link>{" "}
               to troubleshoot this issue.
@@ -581,70 +435,13 @@ export default function ApplicationPage() {
                 Please upload your last 3 months of bank statements and any other relevant documents.
               </p>
 
-              <div className="border-2 border-dashed rounded-lg p-6 text-center">
-                <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
-                <p className="mb-2 text-sm text-muted-foreground">Drag and drop files here, or click to select files</p>
-                <Input
-                  type="file"
-                  multiple
-                  className="hidden"
-                  id="file-upload"
-                  onChange={handleFileChange}
-                  ref={fileInputRef}
-                />
-                <label htmlFor="file-upload">
-                  <Button type="button" variant="outline" className="mt-2">
-                    Select Files
-                  </Button>
-                </label>
-              </div>
-
-              {uploadedDocuments.length > 0 && (
-                <div className="mt-4">
-                  <h3 className="text-sm font-medium mb-2">Uploaded Documents:</h3>
-                  <ul className="space-y-2">
-                    {uploadedDocuments.map((doc) => (
-                      <li key={doc.id} className="flex items-center justify-between bg-muted p-2 rounded-md">
-                        <div className="flex items-center space-x-2 max-w-[80%]">
-                          {doc.status === "uploading" ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
-                          ) : doc.status === "success" ? (
-                            <CheckCircle className="h-4 w-4 text-emerald-600" />
-                          ) : (
-                            <XCircle className="h-4 w-4 text-red-500" />
-                          )}
-                          <span className="text-sm truncate">{doc.name}</span>
-                        </div>
-                        {doc.status === "uploading" ? (
-                          <div className="w-24">
-                            <Progress value={doc.progress} className="h-2" />
-                          </div>
-                        ) : doc.status === "error" ? (
-                          <Button type="button" variant="ghost" size="sm" onClick={() => retryUpload(doc.id)}>
-                            <RefreshCw className="h-4 w-4 mr-1" />
-                            Retry
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeDocument(doc.id)}
-                            disabled={doc.status === "uploading"}
-                          >
-                            Remove
-                          </Button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                  {uploadedDocuments.some((doc) => doc.status === "error") && (
-                    <p className="text-xs text-red-500 mt-2">
-                      Some documents failed to upload. Please retry or remove them.
-                    </p>
-                  )}
-                </div>
-              )}
+              <DocumentUploader
+                onUploadComplete={handleUploadComplete}
+                onUploadError={handleUploadError}
+                maxFiles={5}
+                maxSizeInBytes={5 * 1024 * 1024} // 5MB
+                showPreview={true}
+              />
             </div>
 
             <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={isSubmitting}>
