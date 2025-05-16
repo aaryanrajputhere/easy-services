@@ -2,10 +2,10 @@
 
 import type React from "react"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { BadgeDollarSign, ArrowLeft, Upload, Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react"
+import { BadgeDollarSign, ArrowLeft, Upload, Loader2, CheckCircle, XCircle, AlertCircle, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,7 @@ import { Progress } from "@/components/ui/progress"
 import { submitApplication } from "./actions"
 
 type UploadedDocument = {
+  id: string
   name: string
   url: string
   status: "uploading" | "success" | "error"
@@ -26,6 +27,7 @@ type UploadedDocument = {
 
 export default function ApplicationPage() {
   const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([])
   const [formData, setFormData] = useState({
@@ -45,6 +47,7 @@ export default function ApplicationPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState(false)
+  const [blobError, setBlobError] = useState<string | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -74,102 +77,105 @@ export default function ApplicationPage() {
   }
 
   // This is the key function that handles file uploads
-  const uploadFile = useCallback(
-    async (file: File) => {
-      // Create a new document entry with "uploading" status
-      const newDocument: UploadedDocument = {
-        name: file.name,
-        url: "",
-        status: "uploading",
-        progress: 0,
-      }
+  const uploadFile = useCallback(async (file: File) => {
+    // Generate a unique ID for this upload
+    const uploadId = `upload-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
 
-      // Add the new document to the state
-      setUploadedDocuments((prev) => [...prev, newDocument])
+    // Create a new document entry with "uploading" status
+    const newDocument: UploadedDocument = {
+      id: uploadId,
+      name: file.name,
+      url: "",
+      status: "uploading",
+      progress: 0,
+    }
 
-      // Get the index of the new document
-      const documentIndex = uploadedDocuments.length
+    // Add the new document to the state
+    setUploadedDocuments((prev) => [...prev, newDocument])
 
-      try {
-        // Create form data for the file
-        const formData = new FormData()
-        formData.append("file", file)
+    try {
+      // Create form data for the file
+      const formData = new FormData()
+      formData.append("file", file)
 
-        // Log what we're about to upload
-        console.log(`Attempting to upload file: ${file.name}, size: ${file.size} bytes, type: ${file.type}`)
+      // Log what we're about to upload
+      console.log(`Attempting to upload file: ${file.name}, size: ${file.size} bytes, type: ${file.type}`)
 
-        // Simulate progress updates
-        const progressInterval = setInterval(() => {
-          setUploadedDocuments((prev) => {
-            const updated = [...prev]
-            if (updated[documentIndex] && updated[documentIndex].status === "uploading") {
-              updated[documentIndex] = {
-                ...updated[documentIndex],
-                progress: Math.min(updated[documentIndex].progress + 10, 90),
+      // Simulate progress updates
+      const progressInterval = setInterval(() => {
+        setUploadedDocuments((prev) => {
+          return prev.map((doc) => {
+            if (doc.id === uploadId && doc.status === "uploading") {
+              return {
+                ...doc,
+                progress: Math.min(doc.progress + 10, 90),
               }
             }
-            return updated
+            return doc
           })
-        }, 300)
-
-        // Upload the file to our API route
-        const response = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
         })
+      }, 300)
 
-        clearInterval(progressInterval)
+      // Upload the file to our API route
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      })
 
-        // Check if the request was successful
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }))
-          throw new Error(errorData.error || errorData.message || `Upload failed with status: ${response.status}`)
-        }
+      clearInterval(progressInterval)
 
-        // Parse the response
-        const result = await response.json()
+      // Check if the request was successful
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }))
+        throw new Error(errorData.error || errorData.message || `Upload failed with status: ${response.status}`)
+      }
 
-        console.log("Upload response:", result)
+      // Parse the response
+      const result = await response.json()
 
-        // Update the document with the URL and success status
-        setUploadedDocuments((prev) => {
-          const updated = [...prev]
-          if (updated[documentIndex]) {
-            updated[documentIndex] = {
-              name: file.name,
+      console.log("Upload response:", result)
+
+      // Update the document with the URL and success status
+      setUploadedDocuments((prev) => {
+        return prev.map((doc) => {
+          if (doc.id === uploadId) {
+            return {
+              ...doc,
               url: result.url,
               status: "success",
               progress: 100,
             }
           }
-          return updated
+          return doc
         })
+      })
 
-        console.log(`File uploaded successfully: ${result.url}`)
-        return result.url
-      } catch (error) {
-        console.error("Error uploading file:", error)
+      console.log(`File uploaded successfully: ${result.url}`)
+      setBlobError(null)
+      return result.url
+    } catch (error) {
+      console.error("Error uploading file:", error)
 
-        // Update the document with error status
-        setUploadedDocuments((prev) => {
-          const updated = [...prev]
-          if (updated[documentIndex]) {
-            updated[documentIndex] = {
-              ...updated[documentIndex],
+      // Update the document with error status
+      setUploadedDocuments((prev) => {
+        return prev.map((doc) => {
+          if (doc.id === uploadId) {
+            return {
+              ...doc,
               status: "error",
               progress: 100,
               error: error instanceof Error ? error.message : "Unknown error",
             }
           }
-          return updated
+          return doc
         })
+      })
 
-        setSubmitError(`Failed to upload document: ${error instanceof Error ? error.message : "Unknown error"}`)
-        return null
-      }
-    },
-    [uploadedDocuments.length],
-  )
+      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+      setBlobError(`Failed to upload document: ${errorMessage}`)
+      return null
+    }
+  }, [])
 
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -184,14 +190,36 @@ export default function ApplicationPage() {
         for (const file of files) {
           await uploadFile(file)
         }
+
+        // Clear the file input so the same file can be selected again
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ""
+        }
       }
     },
     [uploadFile],
   )
 
-  const removeDocument = useCallback((index: number) => {
-    setUploadedDocuments((prev) => prev.filter((_, i) => i !== index))
+  const removeDocument = useCallback((id: string) => {
+    setUploadedDocuments((prev) => prev.filter((doc) => doc.id !== id))
   }, [])
+
+  const retryUpload = useCallback(
+    (id: string) => {
+      // Find the document that failed
+      const failedDoc = uploadedDocuments.find((doc) => doc.id === id)
+      if (!failedDoc) return
+
+      // Remove the failed document
+      setUploadedDocuments((prev) => prev.filter((doc) => doc.id !== id))
+
+      // If we have a file input, prompt the user to select the file again
+      if (fileInputRef.current) {
+        fileInputRef.current.click()
+      }
+    },
+    [uploadedDocuments],
+  )
 
   const validateForm = useCallback(() => {
     const newErrors: Record<string, string> = {}
@@ -310,6 +338,21 @@ export default function ApplicationPage() {
         <div className="bg-red-50 border border-red-200 text-red-800 rounded-md p-4 mb-6 flex items-start gap-2">
           <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
           <p>{submitError}</p>
+        </div>
+      )}
+
+      {blobError && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-md p-4 mb-6 flex items-start gap-2">
+          <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <p>{blobError}</p>
+            <p className="text-sm mt-1">
+              <Link href="/diagnostics" className="underline">
+                Run diagnostics
+              </Link>{" "}
+              to troubleshoot this issue.
+            </p>
+          </div>
         </div>
       )}
 
@@ -541,7 +584,14 @@ export default function ApplicationPage() {
               <div className="border-2 border-dashed rounded-lg p-6 text-center">
                 <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
                 <p className="mb-2 text-sm text-muted-foreground">Drag and drop files here, or click to select files</p>
-                <Input type="file" multiple className="hidden" id="file-upload" onChange={handleFileChange} />
+                <Input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  id="file-upload"
+                  onChange={handleFileChange}
+                  ref={fileInputRef}
+                />
                 <label htmlFor="file-upload">
                   <Button type="button" variant="outline" className="mt-2">
                     Select Files
@@ -553,8 +603,8 @@ export default function ApplicationPage() {
                 <div className="mt-4">
                   <h3 className="text-sm font-medium mb-2">Uploaded Documents:</h3>
                   <ul className="space-y-2">
-                    {uploadedDocuments.map((doc, index) => (
-                      <li key={index} className="flex items-center justify-between bg-muted p-2 rounded-md">
+                    {uploadedDocuments.map((doc) => (
+                      <li key={doc.id} className="flex items-center justify-between bg-muted p-2 rounded-md">
                         <div className="flex items-center space-x-2 max-w-[80%]">
                           {doc.status === "uploading" ? (
                             <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
@@ -569,12 +619,17 @@ export default function ApplicationPage() {
                           <div className="w-24">
                             <Progress value={doc.progress} className="h-2" />
                           </div>
+                        ) : doc.status === "error" ? (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => retryUpload(doc.id)}>
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                            Retry
+                          </Button>
                         ) : (
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => removeDocument(index)}
+                            onClick={() => removeDocument(doc.id)}
                             disabled={doc.status === "uploading"}
                           >
                             Remove
@@ -585,7 +640,7 @@ export default function ApplicationPage() {
                   </ul>
                   {uploadedDocuments.some((doc) => doc.status === "error") && (
                     <p className="text-xs text-red-500 mt-2">
-                      Some documents failed to upload. Please remove them and try again.
+                      Some documents failed to upload. Please retry or remove them.
                     </p>
                   )}
                 </div>

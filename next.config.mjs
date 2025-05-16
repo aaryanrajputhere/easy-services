@@ -11,6 +11,12 @@ const nextConfig = {
   images: {
     unoptimized: true,
     domains: ['vercel-blob.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.vercel-storage.com',
+      },
+    ],
   },
   // Add experimental options to help with middleware
   experimental: {

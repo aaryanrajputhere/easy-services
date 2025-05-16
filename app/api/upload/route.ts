@@ -25,6 +25,13 @@ export async function POST(request: Request) {
 
     // Upload to Vercel Blob
     console.log(`Uploading file to Vercel Blob: ${uniqueFilename}`)
+
+    // Check if BLOB_READ_WRITE_TOKEN is available
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.error("BLOB_READ_WRITE_TOKEN is not set")
+      return NextResponse.json({ error: "Blob storage is not properly configured" }, { status: 500 })
+    }
+
     const blob = await put(uniqueFilename, file, {
       access: "public",
       addRandomSuffix: false, // We're already adding a timestamp
