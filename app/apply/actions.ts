@@ -34,31 +34,35 @@ export async function submitApplication(data: ApplicationData) {
 
     // Send confirmation email to the applicant
     try {
-      const { data: emailData, error: emailError } = await resend.emails.send({
-        from: "Easy Services <onboarding@resend.dev>",
-        to: [data.ownerEmail],
-        subject: "Your Application Has Been Received",
-        html: `
-          <h1>Thank you for your application, ${data.ownerName}!</h1>
-          <p>We have received your merchant cash advance application for ${data.businessName}.</p>
-          <p>Our team will review your application and get back to you within 24 hours.</p>
-          <h2>Application Details:</h2>
-          <ul>
-            <li><strong>Business Name:</strong> ${data.businessName}</li>
-            <li><strong>Business Address:</strong> ${data.businessAddress}, ${data.businessCity}, ${data.businessState} ${data.businessZip}</li>
-            <li><strong>Years in Business:</strong> ${data.yearsInBusiness}</li>
-            <li><strong>Monthly Revenue:</strong> ${data.monthlyRevenue}</li>
-            <li><strong>Requested Amount:</strong> ${data.requestedAmount}</li>
-          </ul>
-          <p>If you have any questions, please reply to this email or call us at (555) 123-4567.</p>
-          <p>Thank you for choosing Easy Services for your business funding needs.</p>
-        `,
-      })
+      if (process.env.RESEND_API_KEY) {
+        const { data: emailData, error: emailError } = await resend.emails.send({
+          from: "Easy Services <onboarding@resend.dev>",
+          to: [data.ownerEmail],
+          subject: "Your Application Has Been Received",
+          html: `
+            <h1>Thank you for your application, ${data.ownerName}!</h1>
+            <p>We have received your merchant cash advance application for ${data.businessName}.</p>
+            <p>Our team will review your information and contact you within 24 hours.</p>
+            <h2>Application Details:</h2>
+            <ul>
+              <li><strong>Business Name:</strong> ${data.businessName}</li>
+              <li><strong>Business Address:</strong> ${data.businessAddress}, ${data.businessCity}, ${data.businessState} ${data.businessZip}</li>
+              <li><strong>Years in Business:</strong> ${data.yearsInBusiness}</li>
+              <li><strong>Monthly Revenue:</strong> ${data.monthlyRevenue}</li>
+              <li><strong>Requested Amount:</strong> ${data.requestedAmount}</li>
+            </ul>
+            <p>If you have any questions, please reply to this email or call us at (555) 123-4567.</p>
+            <p>Thank you for choosing Easy Services for your business funding needs.</p>
+          `,
+        })
 
-      if (emailError) {
-        console.error("Error sending confirmation email:", emailError)
+        if (emailError) {
+          console.error("Error sending confirmation email:", emailError)
+        } else {
+          console.log("Confirmation email sent:", emailData)
+        }
       } else {
-        console.log("Confirmation email sent:", emailData)
+        console.log("Skipping email sending - RESEND_API_KEY not configured")
       }
     } catch (emailError) {
       console.error("Exception sending confirmation email:", emailError)
@@ -66,41 +70,45 @@ export async function submitApplication(data: ApplicationData) {
 
     // Send notification email to the admin
     try {
-      const { data: adminEmailData, error: adminEmailError } = await resend.emails.send({
-        from: "Easy Services <onboarding@resend.dev>",
-        to: ["info@easyservices.info"], // Replace with your admin email
-        subject: `New Application: ${data.businessName}`,
-        html: `
-          <h1>New Merchant Cash Advance Application</h1>
-          <h2>Business Information:</h2>
-          <ul>
-            <li><strong>Business Name:</strong> ${data.businessName}</li>
-            <li><strong>Business Address:</strong> ${data.businessAddress}, ${data.businessCity}, ${data.businessState} ${data.businessZip}</li>
-            <li><strong>Years in Business:</strong> ${data.yearsInBusiness}</li>
-          </ul>
-          <h2>Owner Information:</h2>
-          <ul>
-            <li><strong>Owner Name:</strong> ${data.ownerName}</li>
-            <li><strong>Email:</strong> ${data.ownerEmail}</li>
-            <li><strong>Phone:</strong> ${data.ownerPhone}</li>
-          </ul>
-          <h2>Financial Information:</h2>
-          <ul>
-            <li><strong>Monthly Revenue:</strong> ${data.monthlyRevenue}</li>
-            <li><strong>Requested Amount:</strong> ${data.requestedAmount}</li>
-            <li><strong>Use of Funds:</strong> ${data.useOfFunds}</li>
-          </ul>
-          <h2>Uploaded Documents:</h2>
-          <ul>
-            ${documentsList}
-          </ul>
-        `,
-      })
+      if (process.env.RESEND_API_KEY) {
+        const { data: adminEmailData, error: adminEmailError } = await resend.emails.send({
+          from: "Easy Services <onboarding@resend.dev>",
+          to: ["info@easyservices.info"], // Replace with your admin email
+          subject: `New Application: ${data.businessName}`,
+          html: `
+            <h1>New Merchant Cash Advance Application</h1>
+            <h2>Business Information:</h2>
+            <ul>
+              <li><strong>Business Name:</strong> ${data.businessName}</li>
+              <li><strong>Business Address:</strong> ${data.businessAddress}, ${data.businessCity}, ${data.businessState} ${data.businessZip}</li>
+              <li><strong>Years in Business:</strong> ${data.yearsInBusiness}</li>
+            </ul>
+            <h2>Owner Information:</h2>
+            <ul>
+              <li><strong>Owner Name:</strong> ${data.ownerName}</li>
+              <li><strong>Email:</strong> ${data.ownerEmail}</li>
+              <li><strong>Phone:</strong> ${data.ownerPhone}</li>
+            </ul>
+            <h2>Financial Information:</h2>
+            <ul>
+              <li><strong>Monthly Revenue:</strong> ${data.monthlyRevenue}</li>
+              <li><strong>Requested Amount:</strong> ${data.requestedAmount}</li>
+              <li><strong>Use of Funds:</strong> ${data.useOfFunds}</li>
+            </ul>
+            <h2>Uploaded Documents:</h2>
+            <ul>
+              ${documentsList}
+            </ul>
+          `,
+        })
 
-      if (adminEmailError) {
-        console.error("Error sending admin notification email:", adminEmailError)
+        if (adminEmailError) {
+          console.error("Error sending admin notification email:", adminEmailError)
+        } else {
+          console.log("Admin notification email sent:", adminEmailData)
+        }
       } else {
-        console.log("Admin notification email sent:", adminEmailData)
+        console.log("Skipping admin email - RESEND_API_KEY not configured")
       }
     } catch (adminEmailError) {
       console.error("Exception sending admin notification email:", adminEmailError)

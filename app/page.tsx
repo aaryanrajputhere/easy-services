@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, BadgeDollarSign, Building, Clock } from "lucide-react"
+import { ImageDisplay } from "@/components/ui/image-display"
 
 export default function Home() {
   return (
@@ -65,10 +66,11 @@ export default function Home() {
               </div>
               <div className="flex items-center justify-center">
                 <div className="relative h-[300px] w-full overflow-hidden rounded-xl bg-muted md:h-[400px] lg:h-[500px]">
-                  <img
+                  <ImageDisplay
                     src="/images/business-funding.jpg"
                     alt="Business owner reviewing finances"
                     className="object-cover w-full h-full"
+                    fallbackSrc="/images/test-business-funding.jpg"
                   />
                 </div>
               </div>
@@ -95,6 +97,7 @@ export default function Home() {
                   description: "Fill out our simple application form and upload your last 3 months of bank statements.",
                   icon: <Building className="h-10 w-10 text-emerald-600" />,
                   image: "/images/business-owner.jpg",
+                  fallback: "/images/test-business-owner.jpg",
                 },
                 {
                   title: "2. Get Approved",
@@ -102,20 +105,25 @@ export default function Home() {
                     "Receive a funding decision within 24 hours with flexible terms tailored to your business.",
                   icon: <Clock className="h-10 w-10 text-emerald-600" />,
                   image: "/images/funding-process.jpg",
+                  fallback: "/images/test-funding-process.jpg",
                 },
                 {
                   title: "3. Receive Funds",
                   description: "Once approved, funds are deposited directly into your business bank account.",
                   icon: <BadgeDollarSign className="h-10 w-10 text-emerald-600" />,
                   image: "/images/business-funding.jpg",
+                  fallback: "/images/test-business-funding.jpg",
                 },
               ].map((step, index) => (
                 <div key={index} className="flex flex-col items-center space-y-4 rounded-lg border p-6">
                   <div className="h-40 w-full mb-2 overflow-hidden rounded-lg">
-                    <img
-                      src={step.image || "/placeholder.svg?height=160&width=320"}
+                    <ImageDisplay
+                      src={step.image || "/placeholder.svg"}
                       alt={step.title}
                       className="h-full w-full object-cover"
+                      fallbackSrc={step.fallback}
+                      width={320}
+                      height={160}
                     />
                   </div>
                   {step.icon}
