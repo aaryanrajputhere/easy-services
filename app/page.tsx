@@ -3,11 +3,6 @@ import { Button } from "@/components/ui/button"
 import { ArrowRight, BadgeDollarSign, Building, Clock } from "lucide-react"
 
 export default function Home() {
-  // Function to check if an image exists
-  const imageWithFallback = (src: string, fallbackSrc = "/placeholder.svg?height=300&width=500") => {
-    return src || fallbackSrc
-  }
-
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -71,14 +66,9 @@ export default function Home() {
               <div className="flex items-center justify-center">
                 <div className="relative h-[300px] w-full overflow-hidden rounded-xl bg-muted md:h-[400px] lg:h-[500px]">
                   <img
-                    src={imageWithFallback("/images/business-funding.jpg") || "/placeholder.svg"}
+                    src="/images/business-funding.jpg"
                     alt="Business owner reviewing finances"
                     className="object-cover w-full h-full"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement
-                      target.onerror = null
-                      target.src = "/placeholder.svg?height=500&width=600"
-                    }}
                   />
                 </div>
               </div>
@@ -123,17 +113,9 @@ export default function Home() {
                 <div key={index} className="flex flex-col items-center space-y-4 rounded-lg border p-6">
                   <div className="h-40 w-full mb-2 overflow-hidden rounded-lg">
                     <img
-                      src={imageWithFallback(
-                        step.image,
-                        `/placeholder.svg?height=160&width=320&text=${encodeURIComponent(step.title) || "/placeholder.svg"}`,
-                      )}
+                      src={step.image || "/placeholder.svg?height=160&width=320"}
                       alt={step.title}
                       className="h-full w-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement
-                        target.onerror = null
-                        target.src = `/placeholder.svg?height=160&width=320&text=${encodeURIComponent(step.title)}`
-                      }}
                     />
                   </div>
                   {step.icon}
