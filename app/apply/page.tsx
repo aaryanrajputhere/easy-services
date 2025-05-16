@@ -73,6 +73,7 @@ export default function ApplicationPage() {
     }
   }
 
+  // This is the key function that handles file uploads
   const uploadFile = useCallback(
     async (file: File) => {
       // Create a new document entry with "uploading" status
@@ -94,6 +95,9 @@ export default function ApplicationPage() {
         const formData = new FormData()
         formData.append("file", file)
 
+        // Log what we're about to upload
+        console.log(`Attempting to upload file: ${file.name}, size: ${file.size} bytes, type: ${file.type}`)
+
         // Simulate progress updates
         const progressInterval = setInterval(() => {
           setUploadedDocuments((prev) => {
@@ -108,9 +112,7 @@ export default function ApplicationPage() {
           })
         }, 300)
 
-        console.log(`Uploading file: ${file.name}, size: ${file.size} bytes`)
-
-        // Upload the file
+        // Upload the file to our API route
         const response = await fetch("/api/upload", {
           method: "POST",
           body: formData,
@@ -118,12 +120,14 @@ export default function ApplicationPage() {
 
         clearInterval(progressInterval)
 
+        // Check if the request was successful
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }))
+          throw new Error(errorData.error || errorData.message || `Upload failed with status: ${response.status}`)
+        }
+
         // Parse the response
         const result = await response.json()
-
-        if (!response.ok) {
-          throw new Error(result.error || result.details || "Failed to upload file")
-        }
 
         console.log("Upload response:", result)
 
@@ -132,7 +136,7 @@ export default function ApplicationPage() {
           const updated = [...prev]
           if (updated[documentIndex]) {
             updated[documentIndex] = {
-              name: result.name,
+              name: file.name,
               url: result.url,
               status: "success",
               progress: 100,
@@ -326,6 +330,7 @@ export default function ApplicationPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Business Information Section */}
             <div className="space-y-4">
               <h2 className="text-xl font-semibold">Business Information</h2>
 
@@ -419,6 +424,7 @@ export default function ApplicationPage() {
               </div>
             </div>
 
+            {/* Owner Information Section */}
             <div className="space-y-4">
               <h2 className="text-xl font-semibold">Owner Information</h2>
 
@@ -465,6 +471,7 @@ export default function ApplicationPage() {
               </div>
             </div>
 
+            {/* Financial Information Section */}
             <div className="space-y-4">
               <h2 className="text-xl font-semibold">Financial Information</h2>
 
@@ -524,6 +531,7 @@ export default function ApplicationPage() {
               </div>
             </div>
 
+            {/* Document Upload Section */}
             <div className="space-y-4">
               <h2 className="text-xl font-semibold">Document Upload</h2>
               <p className="text-sm text-muted-foreground">
