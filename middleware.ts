@@ -1,15 +1,17 @@
-// If this file exists, it might be causing issues
-// Comment out the content temporarily to see if it fixes the 404 error
-/*
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { NextResponse } from "next/server"
+import type { NextRequest } from "next/server"
 
+// Simple middleware that just passes the request through
 export function middleware(request: NextRequest) {
-  // Your middleware logic here
+  // Just pass the request through without any processing
   return NextResponse.next()
 }
 
+// Limit middleware to specific paths to reduce chances of errors
 export const config = {
-  matcher: ['/api/:path*'],
+  matcher: [
+    // Apply middleware only to specific paths
+    "/api/upload",
+    "/apply",
+  ],
 }
-*/

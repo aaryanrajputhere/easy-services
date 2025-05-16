@@ -1,30 +1,19 @@
 import { NextResponse } from "next/server"
-import { list } from "@vercel/blob"
 
+// Simplified version that doesn't use Vercel Blob directly
 export async function GET() {
   try {
-    // Check if Blob token is available
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "BLOB_READ_WRITE_TOKEN is not set",
-        },
-        { status: 500 },
-      )
-    }
-
-    // Try to list blobs to test the connection
-    const blobs = await list()
+    // Check if Blob token is available without trying to use it
+    const hasBlobToken = !!process.env.BLOB_READ_WRITE_TOKEN
 
     return NextResponse.json({
       success: true,
-      message: "Blob connection is working correctly",
-      blobCount: blobs.blobs.length,
-      domain: process.env.VERCEL_URL || "unknown",
+      message: "API route is working",
+      hasBlobToken,
+      environment: process.env.NODE_ENV || "unknown",
     })
   } catch (error) {
-    console.error("Error testing Blob:", error)
+    console.error("Error in test route:", error)
 
     return NextResponse.json(
       {

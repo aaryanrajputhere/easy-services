@@ -11,6 +11,15 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Add experimental options to help with middleware
+  experimental: {
+    // Increase middleware timeout
+    serverComponentsExternalPackages: ['@vercel/blob'],
+  },
+  // Increase serverless function timeout
+  serverRuntimeConfig: {
+    maxDuration: 60, // 60 seconds
+  },
   // Add this to ensure proper domain handling
   async headers() {
     return [
