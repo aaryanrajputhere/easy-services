@@ -10,6 +10,7 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
+    domains: ['vercel-blob.com'],
   },
   // Add experimental options to help with middleware
   experimental: {

@@ -2,10 +2,10 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { BadgeDollarSign, ArrowLeft } from "lucide-react"
+import { BadgeDollarSign, ArrowLeft, Upload, Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,10 +13,21 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Progress } from "@/components/ui/progress"
+import { submitApplication } from "./actions"
+
+type UploadedDocument = {
+  name: string
+  url: string
+  status: "uploading" | "success" | "error"
+  progress: number
+  error?: string
+}
 
 export default function ApplicationPage() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([])
   const [formData, setFormData] = useState({
     businessName: "",
     businessAddress: "",
@@ -32,6 +43,8 @@ export default function ApplicationPage() {
     useOfFunds: "",
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -60,7 +73,127 @@ export default function ApplicationPage() {
     }
   }
 
-  const validateForm = () => {
+  // This is the key function that handles file uploads
+  const uploadFile = useCallback(
+    async (file: File) => {
+      // Create a new document entry with "uploading" status
+      const newDocument: UploadedDocument = {
+        name: file.name,
+        url: "",
+        status: "uploading",
+        progress: 0,
+      }
+
+      // Add the new document to the state
+      setUploadedDocuments((prev) => [...prev, newDocument])
+
+      // Get the index of the new document
+      const documentIndex = uploadedDocuments.length
+
+      try {
+        // Create form data for the file
+        const formData = new FormData()
+        formData.append("file", file)
+
+        // Log what we're about to upload
+        console.log(`Attempting to upload file: ${file.name}, size: ${file.size} bytes, type: ${file.type}`)
+
+        // Simulate progress updates
+        const progressInterval = setInterval(() => {
+          setUploadedDocuments((prev) => {
+            const updated = [...prev]
+            if (updated[documentIndex] && updated[documentIndex].status === "uploading") {
+              updated[documentIndex] = {
+                ...updated[documentIndex],
+                progress: Math.min(updated[documentIndex].progress + 10, 90),
+              }
+            }
+            return updated
+          })
+        }, 300)
+
+        // Upload the file to our API route
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        })
+
+        clearInterval(progressInterval)
+
+        // Check if the request was successful
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }))
+          throw new Error(errorData.error || errorData.message || `Upload failed with status: ${response.status}`)
+        }
+
+        // Parse the response
+        const result = await response.json()
+
+        console.log("Upload response:", result)
+
+        // Update the document with the URL and success status
+        setUploadedDocuments((prev) => {
+          const updated = [...prev]
+          if (updated[documentIndex]) {
+            updated[documentIndex] = {
+              name: file.name,
+              url: result.url,
+              status: "success",
+              progress: 100,
+            }
+          }
+          return updated
+        })
+
+        console.log(`File uploaded successfully: ${result.url}`)
+        return result.url
+      } catch (error) {
+        console.error("Error uploading file:", error)
+
+        // Update the document with error status
+        setUploadedDocuments((prev) => {
+          const updated = [...prev]
+          if (updated[documentIndex]) {
+            updated[documentIndex] = {
+              ...updated[documentIndex],
+              status: "error",
+              progress: 100,
+              error: error instanceof Error ? error.message : "Unknown error",
+            }
+          }
+          return updated
+        })
+
+        setSubmitError(`Failed to upload document: ${error instanceof Error ? error.message : "Unknown error"}`)
+        return null
+      }
+    },
+    [uploadedDocuments.length],
+  )
+
+  const handleFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0) {
+        const files = Array.from(e.target.files)
+        console.log(`Selected ${files.length} files for upload`)
+
+        // Clear any previous errors
+        setSubmitError(null)
+
+        // Upload each file
+        for (const file of files) {
+          await uploadFile(file)
+        }
+      }
+    },
+    [uploadFile],
+  )
+
+  const removeDocument = useCallback((index: number) => {
+    setUploadedDocuments((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const validateForm = useCallback(() => {
     const newErrors: Record<string, string> = {}
 
     // Required fields
@@ -92,26 +225,72 @@ export default function ApplicationPage() {
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
-  }
+  }, [formData])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setSubmitError(null)
 
     if (!validateForm()) {
+      setSubmitError("Please fill in all required fields correctly.")
       return
     }
 
     setIsSubmitting(true)
 
     try {
-      // Simulate form submission
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      console.log("Submitting form data:", formData)
 
-      // Redirect to success page
-      router.push("/apply/success")
-    } catch (error) {
+      // Check if any documents are still uploading
+      const stillUploading = uploadedDocuments.some((doc) => doc.status === "uploading")
+      if (stillUploading) {
+        setSubmitError("Please wait for all documents to finish uploading.")
+        setIsSubmitting(false)
+        return
+      }
+
+      // Prepare the documents data
+      const successfulDocuments = uploadedDocuments
+        .filter((doc) => doc.status === "success")
+        .map(({ name, url }) => ({ name, url }))
+
+      console.log("Documents to submit:", successfulDocuments)
+
+      // Submit the application with documents
+      const result = await submitApplication({
+        ...formData,
+        documents: successfulDocuments,
+      })
+
+      console.log("Submission result:", result)
+
+      if (result.success) {
+        setSubmitSuccess(true)
+
+        // Store in localStorage for backup
+        try {
+          const applications = JSON.parse(localStorage.getItem("applications") || "[]")
+          applications.push({
+            ...formData,
+            documents: successfulDocuments,
+            submittedAt: new Date().toISOString(),
+          })
+          localStorage.setItem("applications", JSON.stringify(applications))
+        } catch (err) {
+          console.error("Error saving to localStorage:", err)
+        }
+
+        // Redirect to success page
+        setTimeout(() => {
+          router.push("/apply/success")
+        }, 1000)
+      } else {
+        throw new Error(result.error || "Failed to submit application")
+      }
+    } catch (error: any) {
       console.error("Error submitting application:", error)
       setIsSubmitting(false)
+      setSubmitError(error.message || "There was a problem submitting your application. Please try again.")
     }
   }
 
@@ -124,19 +303,34 @@ export default function ApplicationPage() {
 
       <div className="flex items-center gap-2 mb-8">
         <BadgeDollarSign className="h-8 w-8 text-emerald-600" />
-        <h1 className="text-3xl font-bold">Merchant Cash Advance Application</h1>
+        <h1 className="text-3xl font-bold">Easy Services - Merchant Cash Advance Application</h1>
       </div>
+
+      {submitError && (
+        <div className="bg-red-50 border border-red-200 text-red-800 rounded-md p-4 mb-6 flex items-start gap-2">
+          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+          <p>{submitError}</p>
+        </div>
+      )}
+
+      {submitSuccess && (
+        <div className="bg-green-50 border border-green-200 text-green-800 rounded-md p-4 mb-6 flex items-start gap-2">
+          <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+          <p>Your application has been submitted successfully! Redirecting...</p>
+        </div>
+      )}
 
       <Card>
         <CardHeader>
           <CardTitle>Business Funding Application</CardTitle>
           <CardDescription>
-            Fill out the form below to apply for a merchant cash advance. We&apos;ll review your application and get
-            back to you within 24 hours.
+            Fill out the form below to apply for a merchant cash advance with Easy Services. We&apos;ll review your
+            application and get back to you within 24 hours.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Business Information Section */}
             <div className="space-y-4">
               <h2 className="text-xl font-semibold">Business Information</h2>
 
@@ -175,7 +369,6 @@ export default function ApplicationPage() {
                 </div>
               </div>
 
-              {/* Rest of the form fields */}
               <div className="space-y-2">
                 <Label htmlFor="businessAddress">Business Address</Label>
                 <Input
@@ -231,7 +424,7 @@ export default function ApplicationPage() {
               </div>
             </div>
 
-            {/* Owner Information */}
+            {/* Owner Information Section */}
             <div className="space-y-4">
               <h2 className="text-xl font-semibold">Owner Information</h2>
 
@@ -278,7 +471,7 @@ export default function ApplicationPage() {
               </div>
             </div>
 
-            {/* Financial Information */}
+            {/* Financial Information Section */}
             <div className="space-y-4">
               <h2 className="text-xl font-semibold">Financial Information</h2>
 
@@ -338,13 +531,74 @@ export default function ApplicationPage() {
               </div>
             </div>
 
+            {/* Document Upload Section */}
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold">Document Upload</h2>
+              <p className="text-sm text-muted-foreground">
+                Please upload your last 3 months of bank statements and any other relevant documents.
+              </p>
+
+              <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
+                <p className="mb-2 text-sm text-muted-foreground">Drag and drop files here, or click to select files</p>
+                <Input type="file" multiple className="hidden" id="file-upload" onChange={handleFileChange} />
+                <label htmlFor="file-upload">
+                  <Button type="button" variant="outline" className="mt-2">
+                    Select Files
+                  </Button>
+                </label>
+              </div>
+
+              {uploadedDocuments.length > 0 && (
+                <div className="mt-4">
+                  <h3 className="text-sm font-medium mb-2">Uploaded Documents:</h3>
+                  <ul className="space-y-2">
+                    {uploadedDocuments.map((doc, index) => (
+                      <li key={index} className="flex items-center justify-between bg-muted p-2 rounded-md">
+                        <div className="flex items-center space-x-2 max-w-[80%]">
+                          {doc.status === "uploading" ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                          ) : doc.status === "success" ? (
+                            <CheckCircle className="h-4 w-4 text-emerald-600" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          )}
+                          <span className="text-sm truncate">{doc.name}</span>
+                        </div>
+                        {doc.status === "uploading" ? (
+                          <div className="w-24">
+                            <Progress value={doc.progress} className="h-2" />
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeDocument(index)}
+                            disabled={doc.status === "uploading"}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  {uploadedDocuments.some((doc) => doc.status === "error") && (
+                    <p className="text-xs text-red-500 mt-2">
+                      Some documents failed to upload. Please remove them and try again.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={isSubmitting}>
               {isSubmitting ? "Submitting..." : "Submit Application"}
             </Button>
 
             <p className="text-xs text-center text-muted-foreground">
-              By submitting this application, you agree to our Terms of Service and Privacy Policy. We will review your
-              application and contact you within 24 hours.
+              By submitting this application, you agree to Easy Services' Terms of Service and Privacy Policy. We will
+              review your application and contact you within 24 hours.
             </p>
           </form>
         </CardContent>

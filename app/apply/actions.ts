@@ -2,11 +2,10 @@
 
 import { Resend } from "resend"
 
-// Initialize Resend with your API key
-const resendApiKey = process.env.RESEND_API_KEY
-const resend = new Resend(resendApiKey)
+// Initialize Resend with API key
+const resend = new Resend(process.env.RESEND_API_KEY)
 
-// Define the application data type
+// Define the type for the application data
 type ApplicationData = {
   businessName: string
   businessAddress: string
@@ -20,107 +19,103 @@ type ApplicationData = {
   monthlyRevenue: string
   requestedAmount: string
   useOfFunds: string
-  documents: Array<{
-    name: string
-    url: string
-  }>
+  documents?: Array<{ name: string; url: string }>
 }
 
-export async function submitApplication(formData: ApplicationData) {
-  console.log("Submitting application with data:", formData)
-  console.log("Documents received:", formData.documents)
-
+export async function submitApplication(data: ApplicationData) {
   try {
-    // Log the submission (this will work regardless of email setup)
-    console.log("Application submitted:", {
-      businessName: formData.businessName,
-      ownerName: formData.ownerName,
-      ownerEmail: formData.ownerEmail,
-      requestedAmount: formData.requestedAmount,
-      documents: formData.documents || [],
-    })
+    console.log("Submitting application:", data)
 
-    // Try to send email if Resend API key is available
-    if (resendApiKey) {
-      try {
-        console.log("Attempting to send email notifications")
+    // Format the documents list for the email
+    const documentsList =
+      data.documents && data.documents.length > 0
+        ? data.documents.map((doc) => `<li><a href="${doc.url}" target="_blank">${doc.name}</a></li>`).join("")
+        : "<li>No documents uploaded</li>"
 
-        // Prepare document links for the email
-        const documentLinks =
-          formData.documents && formData.documents.length > 0
-            ? formData.documents.map((doc) => `<li><a href="${doc.url}" target="_blank">${doc.name}</a></li>`).join("")
-            : "<li>No documents uploaded</li>"
+    // Send confirmation email to the applicant
+    try {
+      const { data: emailData, error: emailError } = await resend.emails.send({
+        from: "Easy Services <onboarding@resend.dev>",
+        to: [data.ownerEmail],
+        subject: "Your Application Has Been Received",
+        html: `
+          <h1>Thank you for your application, ${data.ownerName}!</h1>
+          <p>We have received your merchant cash advance application for ${data.businessName}.</p>
+          <p>Our team will review your application and get back to you within 24 hours.</p>
+          <h2>Application Details:</h2>
+          <ul>
+            <li><strong>Business Name:</strong> ${data.businessName}</li>
+            <li><strong>Business Address:</strong> ${data.businessAddress}, ${data.businessCity}, ${data.businessState} ${data.businessZip}</li>
+            <li><strong>Years in Business:</strong> ${data.yearsInBusiness}</li>
+            <li><strong>Monthly Revenue:</strong> ${data.monthlyRevenue}</li>
+            <li><strong>Requested Amount:</strong> ${data.requestedAmount}</li>
+          </ul>
+          <p>If you have any questions, please reply to this email or call us at (555) 123-4567.</p>
+          <p>Thank you for choosing Easy Services for your business funding needs.</p>
+        `,
+      })
 
-        // Send email notification to admin
-        const adminEmailResult = await resend.emails.send({
-          from: "onboarding@resend.dev", // Use Resend's default sender
-          to: "info@easyservices.info", // Your admin email
-          subject: `New MCA Application: ${formData.businessName}`,
-          html: `
-            <h1>New Merchant Cash Advance Application</h1>
-            <p><strong>Submission Date:</strong> ${new Date().toLocaleString()}</p>
-            
-            <h2>Business Information</h2>
-            <ul>
-              <li><strong>Business Name:</strong> ${formData.businessName}</li>
-              <li><strong>Years in Business:</strong> ${formData.yearsInBusiness}</li>
-              <li><strong>Address:</strong> ${formData.businessAddress}, ${formData.businessCity}, ${formData.businessState} ${formData.businessZip}</li>
-            </ul>
-            
-            <h2>Owner Information</h2>
-            <ul>
-              <li><strong>Name:</strong> ${formData.ownerName}</li>
-              <li><strong>Email:</strong> ${formData.ownerEmail}</li>
-              <li><strong>Phone:</strong> ${formData.ownerPhone}</li>
-            </ul>
-            
-            <h2>Financial Information</h2>
-            <ul>
-              <li><strong>Monthly Revenue:</strong> ${formData.monthlyRevenue}</li>
-              <li><strong>Requested Amount:</strong> ${formData.requestedAmount}</li>
-              <li><strong>Use of Funds:</strong> ${formData.useOfFunds}</li>
-            </ul>
-            
-            <h2>Uploaded Documents</h2>
-            <ul>
-              ${documentLinks}
-            </ul>
-          `,
-        })
-
-        console.log("Admin email send result:", adminEmailResult)
-
-        // Send confirmation email to the applicant
-        const confirmationResult = await resend.emails.send({
-          from: "onboarding@resend.dev",
-          to: formData.ownerEmail,
-          subject: "Your Merchant Cash Advance Application - Easy Services",
-          html: `
-            <h1>Thank You for Your Application</h1>
-            <p>Dear ${formData.ownerName},</p>
-            <p>We have received your merchant cash advance application for ${formData.businessName}.</p>
-            <p>Our team will review your information and contact you within 24 hours.</p>
-            <p>If you have any questions, please contact us at info@easyservices.info.</p>
-            <p>Sincerely,<br>Easy Services Team</p>
-          `,
-        })
-
-        console.log("Confirmation email send result:", confirmationResult)
-      } catch (emailError) {
-        console.error("Error sending emails:", emailError)
-        // Continue even if email sending fails
+      if (emailError) {
+        console.error("Error sending confirmation email:", emailError)
+      } else {
+        console.log("Confirmation email sent:", emailData)
       }
-    } else {
-      console.log("Skipping email notifications - Resend API key not configured")
+    } catch (emailError) {
+      console.error("Exception sending confirmation email:", emailError)
     }
 
-    // Return success
-    return { success: true }
+    // Send notification email to the admin
+    try {
+      const { data: adminEmailData, error: adminEmailError } = await resend.emails.send({
+        from: "Easy Services <onboarding@resend.dev>",
+        to: ["info@easyservices.info"], // Replace with your admin email
+        subject: `New Application: ${data.businessName}`,
+        html: `
+          <h1>New Merchant Cash Advance Application</h1>
+          <h2>Business Information:</h2>
+          <ul>
+            <li><strong>Business Name:</strong> ${data.businessName}</li>
+            <li><strong>Business Address:</strong> ${data.businessAddress}, ${data.businessCity}, ${data.businessState} ${data.businessZip}</li>
+            <li><strong>Years in Business:</strong> ${data.yearsInBusiness}</li>
+          </ul>
+          <h2>Owner Information:</h2>
+          <ul>
+            <li><strong>Owner Name:</strong> ${data.ownerName}</li>
+            <li><strong>Email:</strong> ${data.ownerEmail}</li>
+            <li><strong>Phone:</strong> ${data.ownerPhone}</li>
+          </ul>
+          <h2>Financial Information:</h2>
+          <ul>
+            <li><strong>Monthly Revenue:</strong> ${data.monthlyRevenue}</li>
+            <li><strong>Requested Amount:</strong> ${data.requestedAmount}</li>
+            <li><strong>Use of Funds:</strong> ${data.useOfFunds}</li>
+          </ul>
+          <h2>Uploaded Documents:</h2>
+          <ul>
+            ${documentsList}
+          </ul>
+        `,
+      })
+
+      if (adminEmailError) {
+        console.error("Error sending admin notification email:", adminEmailError)
+      } else {
+        console.log("Admin notification email sent:", adminEmailData)
+      }
+    } catch (adminEmailError) {
+      console.error("Exception sending admin notification email:", adminEmailError)
+    }
+
+    // Return success response
+    return {
+      success: true,
+      message: "Application submitted successfully",
+    }
   } catch (error) {
-    console.error("Error in submitApplication:", error)
+    console.error("Error submitting application:", error)
     return {
       success: false,
-      error: error instanceof Error ? error.message : "An error occurred during submission",
+      error: error instanceof Error ? error.message : "An unknown error occurred",
     }
   }
 }

@@ -113,7 +113,7 @@ export default function Home() {
                 <div key={index} className="flex flex-col items-center space-y-4 rounded-lg border p-6">
                   <div className="h-40 w-full mb-2 overflow-hidden rounded-lg">
                     <img
-                      src={step.image || "/placeholder.svg"}
+                      src={step.image || "/placeholder.svg?height=160&width=320"}
                       alt={step.title}
                       className="h-full w-full object-cover"
                     />

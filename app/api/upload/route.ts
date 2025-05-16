@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
+import { put } from "@vercel/blob"
 
-// Simplified version that doesn't use Vercel Blob directly
 export async function POST(request: Request) {
   try {
     // Log that we're starting the upload process
@@ -19,16 +19,23 @@ export async function POST(request: Request) {
 
     console.log(`Processing file: ${file.name}, size: ${file.size} bytes, type: ${file.type}`)
 
-    // Instead of using Vercel Blob, just return a simulated success response
-    // This helps us determine if the error is with Vercel Blob specifically
-    const simulatedUrl = `https://example.com/uploads/${Date.now()}-${file.name.replace(/\s+/g, "-")}`
+    // Generate a unique filename to prevent collisions
+    const timestamp = Date.now()
+    const uniqueFilename = `${timestamp}-${file.name.replace(/\s+/g, "-")}`
 
-    console.log(`Simulated upload URL: ${simulatedUrl}`)
+    // Upload to Vercel Blob
+    console.log(`Uploading file to Vercel Blob: ${uniqueFilename}`)
+    const blob = await put(uniqueFilename, file, {
+      access: "public",
+      addRandomSuffix: false, // We're already adding a timestamp
+    })
+
+    console.log(`File uploaded successfully: ${blob.url}`)
 
     // Return success response
     return NextResponse.json({
       success: true,
-      url: simulatedUrl,
+      url: blob.url,
       name: file.name,
     })
   } catch (error) {
@@ -40,6 +47,7 @@ export async function POST(request: Request) {
       {
         error: "Upload failed",
         message: error instanceof Error ? error.message : "Unknown error",
+        stack: process.env.NODE_ENV === "development" ? (error instanceof Error ? error.stack : undefined) : undefined,
       },
       { status: 500 },
     )
