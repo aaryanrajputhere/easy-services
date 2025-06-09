@@ -1,30 +1,15 @@
-# Build my website
+Easy Services – Business Funding Platform 💼⚡
+A fast, user-friendly business funding platform I built for a U.S. client using Next.js.
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+With Easy Services, users can apply for merchant cash advances ranging from $5,000 to $500,000 — and potentially receive funds in as little as 24 hours, all without any collateral required.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/mca1-engs-projects/v0-build-my-website)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/xsmHCXJZn0l)
+🔧 Tech Stack Highlights
+⚡ Next.js – High-performance server-side rendering (SSR)
 
-## Overview
+🎨 Tailwind CSS – Clean, responsive design system
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+▲ Vercel – Lightning-fast deployment & hosting
 
-## Deployment
+✉️ Resend – Seamless transactional email workflows
 
-Your project is live at:
-
-**[https://vercel.com/mca1-engs-projects/v0-build-my-website](https://vercel.com/mca1-engs-projects/v0-build-my-website)**
-
-## Build your app
-
-Continue building your app on:
-
-**[https://v0.dev/chat/projects/xsmHCXJZn0l](https://v0.dev/chat/projects/xsmHCXJZn0l)**
-
-## How It Works
-
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+📁 Blob – Secure, smooth document uploads
